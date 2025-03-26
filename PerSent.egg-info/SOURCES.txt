@@ -1,0 +1,11 @@
+README.md
+setup.py
+PerSent/CommentAnalyzer.py
+PerSent/__init__.py
+PerSent.egg-info/PKG-INFO
+PerSent.egg-info/SOURCES.txt
+PerSent.egg-info/dependency_links.txt
+PerSent.egg-info/requires.txt
+PerSent.egg-info/top_level.txt
+PerSent/model/classifier.joblib
+PerSent/model/word2vec.model
