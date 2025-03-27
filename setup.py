@@ -24,12 +24,6 @@ setup(
         'tqdm>=4.62.0',
         'joblib>=1.1.0'
     ],
-    extras_require={
-        'dev': [
-            'pytest>=7.0.0',
-            'pytest-cov>=3.0.0'
-        ]
-    }و
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
