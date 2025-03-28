@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="PerSent",
-    version="1.0.2",
+    version="1.1.0",
     author="RezaGooner",
     author_email="RezaAsadiProgrammer@Gmail.com",
     description="Persian Sentiment Analysis Toolkit",
@@ -14,8 +14,9 @@ setup(
     url="https://github.com/RezaGooner/PerSent",
     packages=find_packages(),
     package_data={
-        'PerSent': ['CommentAnalyzer.py', 'model/*'],
+        'PerSent': ['CommentAnalyzer.py','SentimentAnalyzer.py' , 'model/*'],
     },
+    include_package_data=True,
     install_requires=[
         'hazm>=0.7.0',
         'gensim>=4.0.0',
