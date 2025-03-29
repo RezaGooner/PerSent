@@ -26,44 +26,54 @@ pip install PerSent
 ## ساختار 
 ### **توابع تحلیل نظرات**
 
-$$train(train_csv, test_size=0.2, vector_size=100, window=5)$$
+```train(train_csv, test_size=0.2, vector_size=100, window=5)```
 
-متدی برای آموزش مدل هست که یک مسیر از یک فایل CSV شامل ستون های :
+| Parameter     | Data Type | Default Value | Description                                                                 | Optional/Required |
+|--------------|-----------|---------------|-----------------------------------------------------------------------------|-------------------|
+| `train_csv`  | str       | -             | Path to CSV file containing training data with `body` and `recommendation_status` columns | Required          |
+| `test_size`  | float     | 0.2           | Proportion of test data (between 0.0 and 1.0)                               | Optional          |
+| `vector_size`| int       | 100           | Output vector dimension for Word2Vec model (embedding size)                 | Optional          |
+| `window`     | int       | 5             | Context window size for Word2Vec model                                      | Optional          |
 
-1- body
-
-2- recommendation_status
-
-میگیره که ستون دوم باید یکی از مقادیر زیر رو داشته باشه :
+ ستون دوم باید یکی از مقادیر زیر رو داشته باشه :
   - no_idea
   - recommended
   - not_recommended
-  - 
- و اگه غیر این null و NaN  باشه تبدیل به no_idea میشه و روی دقت مدل آموزشی شما تاثیر میذاره. آرگومان های دیگه اختیاری هست :
 
-- test_size : درصد تشکیل دهنده موارد تست از داده های آموزش
-- vector_size : اندازه بردار کلمات
-- window : اندازه پنجره تشخیص contex
+ و اگه غیر این null و NaN  باشه تبدیل به no_idea میشه و روی دقت مدل آموزشی شما تاثیر میذاره. 
+ 
 
 خروجی این تابع ، دقت به دست آمده از داده های تست هست.
 
   ---
 
-  $$predict(text)$$
+  ```analyzeText(text)```
+  
+| Parameter | Data Type | Description                          | Optional/Required |
+|-----------|-----------|--------------------------------------|-------------------|
+| `text`    | str       | The Persian text to be analyzed      | Required          |
 
   تابع اصلی که باهاش کار داریم که یک text میگیره و یکی از مقادیر "not_recommended", "recommended", "no_idea" رو با توجه به تحلیلی که روی متن انجام داده برمیگردونه.
 
   ---
-
-  $$save_model()$$
   
-  $$load_model()$$
+```saveModel()```
+
+```loadModel()```
 
   این دو تابع برای بارگیری و بارگذاری مدل هست که مدل ها توی پوشه model ذخیره میشن و هروقت مدل جدیدی رو آموزش بدیم ، اونجا میتونیم پیداش کنیم.
 
   ---
 
-  $$csvPredict(input_csv, output_path, summary_path=None, text_column=0)$$
+```analyzeCSV(input_csv, output_path, summary_path=None, text_column=0)```
+
+| Parameter      | Data Type       | Default Value | Description                                                                 | Optional/Required |
+|----------------|-----------------|---------------|-----------------------------------------------------------------------------|-------------------|
+| `input_csv`    | str             | -             | Path to input CSV file containing comments to analyze                       | Required          |
+| `output_path`  | str             | -             | Path where analyzed results CSV will be saved                               | Required          |
+| `summary_path` | str or None     | None          | Optional path to save summary statistics CSV                                | Optional          |
+| `text_column`  | int or str      | 0             | Column index (int) or name (str) containing the text to analyze             | Optional          |
+  
 
   تابعی که برای پردازش گروهی از نظرات ذخیره شده توی یک فایل csv به کار میره. اگه فایل تک ستونه باشه نیازی به مشخص کردن ستون text_column نداریم وگرنه باید اسم ستون یا اندیس ستون (شروع از صفر و حتی اعداد منفی ) رو به عنوان آرگومان ارسال کنیم. ورودی ما input_csv و مسیر ذخیره خروجی output_path هست که خروجی شامل دو ستون هست که ستون اول نظرات و ستون دوم وضعیت پیشنهاد شدن recommendation اون نظر هست. اگر خواستیم یه خلاصه کلی از نظرات مثل تعداد کل ، تعداد پیشنهاد شده ها ، تعداد پیشنهاد نشده ها و تعداد بدون ایده ها و همچنین دقت مدل رو داشته باشیم باید به summary_path هم مسیر بدیم. این تابع پردازش و تحلیل رو انجام و فایل نهایی رو ذخیره  میکنه ، علاوه بر اون دیتافریمی رو هم برمیگردونه.
 
@@ -72,33 +82,68 @@ $$train(train_csv, test_size=0.2, vector_size=100, window=5)$$
   
 ### **توابع تحلیل احساسات**
 
-$$load_weighted_lexicon(csv_file, word_col=0, emotion_col=1, weight_col=2)$$
+
+```loadLex(csv_file, word_col=0, emotion_col=1, weight_col=2)```
+
+| Parameter      | Data Type       | Default Value | Description                                                                 | Optional/Required |
+|----------------|-----------------|---------------|-----------------------------------------------------------------------------|-------------------|
+| `csv_file`     | str             | -             | Path to CSV lexicon file                                                    | Required          |
+| `word_col`     | int or str      | 0             | Column index (int) or name (str) containing words                           | Optional          |
+| `emotion_col`  | int or str      | 1             | Column index (int) or name (str) containing emotion labels                  | Optional          |
+| `weight_col`   | int or str      | 2             | Column index (int) or name (str) containing weight values                   | Optional          |
 
 برای خوندن فایل csv حاوی سه ستون کلیدواژه ها ، حس (شادی ، غم ، عصبانیت ، ترس ، نفرت و آرامش) و ستون وزن حس هست. که شماره ستون ها اختیاری هست. و شما باید مسیر فایل رو به عنوان آرگومان مشخص کنید. کلمات باید نسبت به حسی که دارن وزن بگیرن وگرنه وزن 1 میگیرن و این روی دقت مدل تون تاثیر میذاره.
 
 ---
 
-$$train_from_csv(train_csv, text_col='text', emotion_col='sentiment', weight_col='weight')$$
+```train(train_csv, text_col='text', emotion_col='sentiment', weight_col='weight')```
+
+| Parameter      | Data Type       | Default Value | Description                                                                 | Optional/Required |
+|----------------|-----------------|---------------|-----------------------------------------------------------------------------|-------------------|
+| `train_csv`    | str             | -             | Path to training CSV file                                                   | Required          |
+| `text_col`     | str or int      | 'text'        | Column name/index containing text data                                      | Optional          |
+| `emotion_col`  | str or int      | 'emotion'     | Column name/index containing emotion labels                                 | Optional          |
+| `weight_col`   | str or int      | 'weight'      | Column name/index containing weight values                                  | Optional          |
 
 برای آموزش مدل از این تابع استفاده میکنیم و ساختار فایل csv مثل بخش قبل هست که گفتم و باید اسم ستون ها رو هم مشخص کنیم ( در صورت نیاز چون اختیاری هست)
 
 ---
 
-$$save_model(model_name='weighted_sentiment_model')$$
+```saveModel(model_name='weighted_sentiment_model')```
 
-$$load_model(model_name='weighted_sentiment_model')$$
+| Parameter     | Type  | Default Value               | Description                                                                 | Optional/Required |
+|--------------|-------|-----------------------------|-----------------------------------------------------------------------------|-------------------|
+| `model_name` | str   | 'weighted_sentiment_model'  | Base filename for saving model (without extension)                          | Optional          |
+
+
+```loadModel(model_name='weighted_sentiment_model')```
+
+| Parameter     | Type  | Default Value               | Description                                                                 | Optional/Required |
+|--------------|-------|-----------------------------|-----------------------------------------------------------------------------|-------------------|
+| `model_name` | str   | 'weighted_sentiment_model'  | Base filename of model to load (without extension)                         | Optional          |
 
 ذخیره و بازیابی مدل که مثل همون لود و سیوی هست که بالاتر گفتم و مدل ها هم توی همون پوشه model ذخیره میشن.
 
 ---
 
-$$analyze_text(text)$$
+```analyzeText(text)```
+
+| Parameter | Type | Description                          | Optional/Required |
+|-----------|------|--------------------------------------|-------------------|
+| `text`    | str  | Persian text to analyze              | Required          |
 
 تابع تحلیل تک ورودی هست که متنی رو میگیره و با توجه آموزش های مدل ، متن رو تحلیل میکنه و درصدی از حس های گفته شده رو برمیگردونه. کاربردش هم پایین تر گفته شده.
 
 ---
 
-$$analyze_csv(input_csv, output_csv, text_col='text', output_col='sentiment_analysis')$$
+```analyzeCSV(input_csv, output_csv, text_col='text', output_col='sentiment_analysis')```
+
+| Parameter           | Type          | Default Value          | Description                                                                 | Optional/Required |
+|---------------------|---------------|------------------------|-----------------------------------------------------------------------------|-------------------|
+| `input_csv`         | str           | -                      | Path to input CSV file containing text to analyze                           | Required          |
+| `output_csv`        | str           | -                      | Path to save analyzed results                                               | Required          |
+| `text_col`          | str/int       | 'text'                 | Column name/index containing text to analyze                                | Optional          |
+| `output_col`        | str           | 'sentiment_analysis'   | Column name for output results                                              | Optional          |
 
 متدی که برای تحلیل مجموعه ای از متون ذخیره شده توی یک فایل csv به کار میره و مسیر فایل ورودی و همچنین مسیر ذخیره خروجی رو میگیره. و اسم ستون ها هم اختیاری هستند. در صورت موفق بودن True و در غیر این صورت False برمیگردونه.
 
@@ -136,11 +181,11 @@ analyzer = CommentAnalyzer()
 analyzer.train("train.csv")
 
 #  بارگذاری مدل از پیش آموزش دیده
-analyzer.load_model()
+analyzer.loadModel()
 
 # پیش‌بینی متن
 text = "کیفیت عالی داشت"
-result = analyzer.predict(text)
+result = analyzer.analyzeText(text)
 print(f"احساس متن: {result}")
 
 # خروجی: احساس متن: recommended
@@ -152,7 +197,7 @@ print(f"احساس متن: {result}")
 
 حالا میخوایم یک سری نظرات رو که توی یک فایل csv قرار داره تحلیل کنیم. شکل کلی تابع به این صورت هست :
 ``` bash
-csvPredict(input_csv, output_path, summary_path=None, text_column=0)
+analyzeCSV(input_csv, output_path, summary_path=None, text_column=0)
 ```
 که مسیر خلاصه (summary_path) و ستون نظرات (text_column) اختیاری هستند. 
 برای مثال ما میخوایم یک فایل csv تک ستونه رو تحلیل کنیم :
@@ -160,10 +205,10 @@ csvPredict(input_csv, output_path, summary_path=None, text_column=0)
 from PerSent import CommentAnalyzer
 # نمونه‌سازی تحلیلگر
 analyzer = CommentAnalyzer()
-analyzer.load_model()
+analyzer.loadModel()
 
 # تحلیل فایل 
-analyzer.csvPredict(
+analyzer.analyzeCSV(
     input_csv="comments.csv",
     output_path="resultsss.csv"
 )
@@ -184,24 +229,24 @@ from PerSent import CommentAnalyzer
 
 # نمونه‌سازی تحلیلگر
 analyzer = CommentAnalyzer()
-analyzer.load_model()
+analyzer.loadModel()
 
 # روش‌های مختلف فراخوانی تابع:
 
 # 1. استفاده از اندیس ستون (شمارش از 0)
-analyzer.csvPredict("comments.csv", "results.csv", None , 0)  # ستون اول
+analyzer.analyzeCSV("comments.csv", "results.csv", None , 0)  # ستون اول
 
 # 2. استفاده از اندیس منفی (شمارش از آخر)
-analyzer.csvPredict("comments.csv", "results.csv", None , -1)  # ستون آخر
+analyzer.analyzeCSV("comments.csv", "results.csv", None , -1)  # ستون آخر
 
 # 3. استفاده از نام ستون
-analyzer.csvPredict("comments.csv", "results.csv", None , "نظرات") # ستون با سرستون نظرات
+analyzer.analyzeCSV("comments.csv", "results.csv", None , "نظرات") # ستون با سرستون نظرات
 
 # 4. استفاده از خلاصه سازی بدون مشخص کردن ستون (فایل تک ستون)
-analyzer.csvPredict("comments.csv", "results.csv" , "summary_path.csv")
+analyzer.analyzeCSV("comments.csv", "results.csv" , "summary_path.csv")
 
 # 5. استفاده از خلاصه سازی به همراه مشخص کردن ستون
-analyzer.csvPredict("comments.csv", "results.csv" , "summary_path.csv", 2)
+analyzer.analyzeCSV("comments.csv", "results.csv" , "summary_path.csv", 2)
 
 ```
 
@@ -214,11 +259,11 @@ analyzer.csvPredict("comments.csv", "results.csv" , "summary_path.csv", 2)
 from PerSent import SentimentAnalyzer
 
 analyzer = SentimentAnalyzer()
-analyzer.load_model()
+analyzer.loadModel()
 
 sample_text = "امتحانم رو خراب کردم. احساس می‌کنم یک شکست خورده‌ی تمام عیارم."
 
-result = analyzer.analyze_text(text)
+result = analyzer.analyzeText(text)
 for emotion, score in sorted(result.items(), key=lambda x: x[1], reverse=True):
     print(f"{emotion}: {score:.2f}%")
 
@@ -236,7 +281,7 @@ for emotion, score in sorted(result.items(), key=lambda x: x[1], reverse=True):
 
 اگر بخوایم مدل آموزش دیده خودمون رو داشته باشیم از دستور زیر استفاده میکنیم :
 ``` bash
-analyzer.train_from_csv('emotion_dataset.csv)
+analyzer.train('emotion_dataset.csv)
 ```
 فایل باید حاوی سه ستون زیر باشه :
 1- ستون کلیدواژه
@@ -245,13 +290,13 @@ analyzer.train_from_csv('emotion_dataset.csv)
 
 و دو دستور زیر برای بارگیری و بارگذاری مدل هست :
 ``` bash
-analyzer.save_model("weighted_sentiment_model_name")
-analyzer.load_model("weighted_sentiment_model_name")
+analyzer.saveModel("weighted_sentiment_model_name")
+analyzer.loadModel("weighted_sentiment_model_name")
 ```
 
 و همچنین برای تحلیل یک فایل csv پر از جملات فارسی از این بخش استفاده می کنیم :
 ``` bash
-analyzer.analyze_csv("input_csv" , "output_csv")
+analyzer.analyzeCSV("input_csv" , "output_csv")
 ```
 
 
