@@ -27,7 +27,8 @@ Initial repository that evolved into this library:
 [Click here](https://github.com/RezaGooner/Sentiment-Survey-Analyzer)
 
 We welcome user testing and feedback to improve the library. If you encounter bugs or have suggestions, please:
-[Contribute](#contribute)
+
+- [Contribute](#contribution)
 
 For installation issues due to dependency conflicts (especially with mingw-w64), consider using online platforms like DeepNote.com.
 
