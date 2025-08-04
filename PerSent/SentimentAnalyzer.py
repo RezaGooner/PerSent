@@ -11,6 +11,7 @@ from collections import defaultdict
 from hazm import Stemmer, Lemmatizer, Normalizer, word_tokenize, stopwords_list
 from tqdm import tqdm
 import pandas as pd
+import importlib.resources
 
 class SentimentAnalyzer:
     """A Persian sentiment analyzer that supports word weighting"""
@@ -239,20 +240,15 @@ class SentimentAnalyzer:
         """
         try:
             model_path = os.path.join(self.model_dir, f'{model_name}.joblib')
-            
-            if not os.path.exists(model_path):
-                raise FileNotFoundError(f"Model file {model_path} not found")
-            
-            data = joblib.load(model_path)
+            if os.path.exists(model_path):
+                data = joblib.load(model_path)
+            else:
+                with importlib.resources.path("PerSent.models", f'{model_name}.joblib') as pkg_model_path:
+                    data = joblib.load(pkg_model_path)
             self.emotion_map = data['emotion_map']
             self.keywords = defaultdict(list, data['keywords'])
             self.word_weights = defaultdict(dict, data['word_weights'])
             self.model_loaded = True
-            
-        except FileNotFoundError as e:
-            raise FileNotFoundError(f"Model file not found: {str(e)}")
-        except (KeyError, AttributeError) as e:
-            raise ValueError(f"Invalid or corrupted model file: {str(e)}")
         except Exception as e:
             raise Exception(f"Failed to load model: {str(e)}")
     

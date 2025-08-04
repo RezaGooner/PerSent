@@ -9,6 +9,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 import os
 import joblib
+import importlib.resources
+
 
 class CommentAnalyzer:
     def __init__(self, model_dir='PerSent/model'):
@@ -140,21 +142,35 @@ class CommentAnalyzer:
         except Exception as e:
             raise Exception(f"Error while saving model: {str(e)}")
     
+
     def loadModel(self):
-        """reload from file"""
+        """reload from package asset or model_dir"""
         try:
-            classifier_path = os.path.join(self.model_dir, 'classifier.joblib')
-            vectorizer_path = os.path.join(self.model_dir, 'word2vec.model')
+            classifier_filename = 'classifier.joblib'
+            vectorizer_filename = 'word2vec.model'
+
+            classifier_path = os.path.join(self.model_dir, classifier_filename)
+            vectorizer_path = os.path.join(self.model_dir, vectorizer_filename)
+
+            if os.path.exists(classifier_path) and os.path.exists(vectorizer_path):
+                self.classifier = joblib.load(classifier_path)
+                self.vectorizer = Word2Vec.load(vectorizer_path)
+                return
             
-            if not os.path.exists(classifier_path) or not os.path.exists(vectorizer_path):
-                raise FileNotFoundError("Model files not found in the specified directory")
-                
-            self.classifier = joblib.load(classifier_path)
-            self.vectorizer = Word2Vec.load(vectorizer_path)
-        except FileNotFoundError as e:
-            raise FileNotFoundError(f"Model files not found: {str(e)}")
+            try:
+                with importlib.resources.path("PerSent.models", classifier_filename) as clf_p, \
+                     importlib.resources.path("PerSent.models", vectorizer_filename) as vec_p:
+                    self.classifier = joblib.load(clf_p)
+                    self.vectorizer = Word2Vec.load(str(vec_p))
+            except FileNotFoundError as e:
+                raise FileNotFoundError("Model files not found in model_dir *and* package asset")
+            except Exception as e:
+                raise Exception(f"Failed to load model from package: {str(e)}")
+        
         except Exception as e:
             raise Exception(f"Failed to load model: {str(e)}")
+
+
         
     def analyzeCSV(self, input_csv, output_path, summary_path=None, text_column=0):
         """

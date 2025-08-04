@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: PerSent
-Version: 1.1.0
+Version: 1.2.0
 Summary: Persian Sentiment Analysis Toolkit
 Home-page: https://github.com/RezaGooner/PerSent
 Author: RezaGooner
@@ -57,20 +57,24 @@ Initial repository that evolved into this library:
 [Click here](https://github.com/RezaGooner/Sentiment-Survey-Analyzer)
 
 We welcome user testing and feedback to improve the library. If you encounter bugs or have suggestions, please:
-[Contribute](#Contribute)
+
+- [Contribute](#contribution)
 
 For installation issues due to dependency conflicts (especially with mingw-w64), consider using online platforms like DeepNote.com.
 
 ## Structure
 ### Comment Analysis Functions
 
-$$train(train_csv, test_size=0.2, vector_size=100, window=5)$$
+```train(train_csv, test_size=0.2, vector_size=100, window=5)```
 
-Trains the model using a CSV file with columns:
+| Parameter     | Data Type | Default Value | Description                                                                 | Optional/Required |
+|--------------|-----------|---------------|-----------------------------------------------------------------------------|-------------------|
+| `train_csv`  | str       | -             | Path to CSV file containing training data with `body` and `recommendation_status` columns | Required          |
+| `test_size`  | float     | 0.2           | Proportion of test data (between 0.0 and 1.0)                               | Optional          |
+| `vector_size`| int       | 100           | Output vector dimension for Word2Vec model (embedding size)                 | Optional          |
+| `window`     | int       | 5             | Context window size for Word2Vec model                                      | Optional          |
 
-1- body (text content)
-
-2- recommendation_status (must be one of:)
+recommendation_status must be one of:
 
 - no_idea
 
@@ -78,35 +82,40 @@ Trains the model using a CSV file with columns:
 
 - not_recommended
 
-Null/NaN values are converted to no_idea, affecting model accuracy. Optional parameters:
+Null/NaN values are converted to no_idea, affecting model accuracy.
 
-- test_size: Test data proportion (default 0.2)
-
-- vector_size: Word vector dimensions (default 100)
-
-- window: Context window size (default 5)
-
-Returns test accuracy score.
+- Returns test accuracy score.
 
 ---
 
-  $$predict(text)$$
+  ```analyzeText(text)```
+  
+| Parameter | Data Type | Description                          | Optional/Required |
+|-----------|-----------|--------------------------------------|-------------------|
+| `text`    | str       | The Persian text to be analyzed      | Required          |
 
 The core function that analyzes a text and returns one of:
 "not_recommended", "recommended", or "no_idea".
 
 ---
 
-  $$save_model()$$
-  
-  $$load_model()$$
+```saveModel()```
 
+```loadModel()```
+  
   Model persistence functions. Models are saved in the model directory.
 
 ---
 
-  $$csvPredict(input_csv, output_path, summary_path=None, text_column=0)$$
+```analyzeCSV(input_csv, output_path, summary_path=None, text_column=0)```
 
+| Parameter      | Data Type       | Default Value | Description                                                                 | Optional/Required |
+|----------------|-----------------|---------------|-----------------------------------------------------------------------------|-------------------|
+| `input_csv`    | str             | -             | Path to input CSV file containing comments to analyze                       | Required          |
+| `output_path`  | str             | -             | Path where analyzed results CSV will be saved                               | Required          |
+| `summary_path` | str or None     | None          | Optional path to save summary statistics CSV                                | Optional          |
+| `text_column`  | int or str      | 0             | Column index (int) or name (str) containing the text to analyze             | Optional          |
+  
 
 Batch processes comments from a CSV file. For single-column files, text_column isn't needed. Otherwise specify column name/index (0-based, negative indices supported). Output contains:
 
@@ -131,7 +140,14 @@ Returns a DataFrame and saves results.
 
 ### Emotion Analysis Functions
 
-$$load_weighted_lexicon(csv_file, word_col=0, emotion_col=1, weight_col=2)$$
+```loadLex(csv_file, word_col=0, emotion_col=1, weight_col=2)```
+
+| Parameter      | Data Type       | Default Value | Description                                                                 | Optional/Required |
+|----------------|-----------------|---------------|-----------------------------------------------------------------------------|-------------------|
+| `csv_file`     | str             | -             | Path to CSV lexicon file                                                    | Required          |
+| `word_col`     | int or str      | 0             | Column index (int) or name (str) containing words                           | Optional          |
+| `emotion_col`  | int or str      | 1             | Column index (int) or name (str) containing emotion labels                  | Optional          |
+| `weight_col`   | int or str      | 2             | Column index (int) or name (str) containing weight values                   | Optional          |
 
 Loads a CSV with three columns:
 
@@ -145,27 +161,55 @@ Column indices are optional.
 
 ---
 
-$$train_from_csv(train_csv, text_col='text', emotion_col='sentiment', weight_col='weight')$$
+```train(train_csv, text_col='text', emotion_col='sentiment', weight_col='weight')```
+
+| Parameter      | Data Type       | Default Value | Description                                                                 | Optional/Required |
+|----------------|-----------------|---------------|-----------------------------------------------------------------------------|-------------------|
+| `train_csv`    | str             | -             | Path to training CSV file                                                   | Required          |
+| `text_col`     | str or int      | 'text'        | Column name/index containing text data                                      | Optional          |
+| `emotion_col`  | str or int      | 'emotion'     | Column name/index containing emotion labels                                 | Optional          |
+| `weight_col`   | str or int      | 'weight'      | Column name/index containing weight values                                  | Optional          |
 
 Trains the emotion model using a CSV with specified column names (optional).
 
 ---
 
-$$save_model(model_name='weighted_sentiment_model')$$
+```saveModel(model_name='weighted_sentiment_model')```
 
-$$load_model(model_name='weighted_sentiment_model')$$
+| Parameter     | Type  | Default Value               | Description                                                                 | Optional/Required |
+|--------------|-------|-----------------------------|-----------------------------------------------------------------------------|-------------------|
+| `model_name` | str   | 'weighted_sentiment_model'  | Base filename for saving model (without extension)                          | Optional          |
+
+
+```loadModel(model_name='weighted_sentiment_model')```
+
+| Parameter     | Type  | Default Value               | Description                                                                 | Optional/Required |
+|--------------|-------|-----------------------------|-----------------------------------------------------------------------------|-------------------|
+| `model_name` | str   | 'weighted_sentiment_model'  | Base filename of model to load (without extension)                         | Optional          |
+
 
 Model persistence functions (saved in model directory).
 
 ---
 
-$$analyze_text(text)$$
+```analyzeText(text)```
+
+| Parameter | Type | Description                          | Optional/Required |
+|-----------|------|--------------------------------------|-------------------|
+| `text`    | str  | Persian text to analyze              | Required          |
 
 Analyzes a single text, returning percentage scores for each emotion.
 
 ---
 
-$$analyze_csv(input_csv, output_csv, text_col='text', output_col='sentiment_analysis')$$
+```analyzeCSV(input_csv, output_csv, text_col='text', output_col='sentiment_analysis')```
+
+| Parameter           | Type          | Default Value          | Description                                                                 | Optional/Required |
+|---------------------|---------------|------------------------|-----------------------------------------------------------------------------|-------------------|
+| `input_csv`         | str           | -                      | Path to input CSV file containing text to analyze                           | Required          |
+| `output_csv`        | str           | -                      | Path to save analyzed results                                               | Required          |
+| `text_col`          | str/int       | 'text'                 | Column name/index containing text to analyze                                | Optional          |
+| `output_col`        | str           | 'sentiment_analysis'   | Column name for output results                                              | Optional          |
 
 Batch processes texts from CSV. Returns True on success. Requires:
 
@@ -207,11 +251,11 @@ Status must be: recommended/not_recommended/no_idea
 analyzer.train("train.csv")
 
 # Load pre-trained model
-analyzer.load_model()
+analyzer.loadModel()
 
 # Predict
 text = "کیفیت عالی داشت" # "Excellent quality"
-result = analyzer.predict(text)
+result = analyzer.analyzeText(text)
 print(f"Sentiment: {result}")  # Output: Sentiment: recommended
 ```
 
@@ -226,29 +270,29 @@ Batch CSV processing:
 ```bash
 from PerSent import CommentAnalyzer
 analyzer = CommentAnalyzer()
-analyzer.load_model()
+analyzer.loadModel()
 
 # Basic usage (single-column CSV)
-analyzer.csvPredict(
+analyzer.analyzeCSV(
     input_csv="comments.csv",
     output_path="results.csv"
 )
 
 # Alternative usage patterns:
 # 1. Using column index (0-based)
-analyzer.csvPredict("comments.csv", "results.csv", None, 0)
+analyzer.analyzeCSV("comments.csv", "results.csv", None, 0)
 
 # 2. Negative indices (count from end)
-analyzer.csvPredict("comments.csv", "results.csv", None, -1)
+analyzer.analyzeCSV("comments.csv", "results.csv", None, -1)
 
 # 3. Column name
-analyzer.csvPredict("comments.csv", "results.csv", None, "نظرات") # "Comments" column
+analyzer.analyzeCSV("comments.csv", "results.csv", None, "نظرات") # "Comments" column
 
 # 4. With summary (single-column)
-analyzer.csvPredict("comments.csv", "results.csv", "summary.csv")
+analyzer.analyzeCSV("comments.csv", "results.csv", "summary.csv")
 
 # 5. With summary and column specification
-analyzer.csvPredict("comments.csv", "results.csv", "summary.csv", 2)
+analyzer.analyzeCSV("comments.csv", "results.csv", "summary.csv", 2)
 ```
 
 - Emotion Analysis
@@ -259,12 +303,12 @@ Single text analysis with pre-trained model:
 from PerSent import SentimentAnalyzer
 
 analyzer = SentimentAnalyzer()
-analyzer.load_model()
+analyzer.loadModel()
 
 sample_text = "امتحانم رو خراب کردم. احساس می‌کنم یک شکست خورده‌ی تمام عیارم."
 # "I failed my exam. I feel like a complete failure."
 
-result = analyzer.analyze_text(sample_text)
+result = analyzer.analyzeText(sample_text)
 for emotion, score in sorted(result.items(), key=lambda x: x[1], reverse=True):
     print(f"{emotion}: {score:.2f}%")
 ```
@@ -284,7 +328,7 @@ output :
 To train your own model:
 
 ``` bash
-analyzer.train_from_csv('emotion_dataset.csv')
+analyzer.train('emotion_dataset.csv')
 ```
 
 Required CSV columns:
@@ -298,14 +342,14 @@ Required CSV columns:
 Model persistence:
 
 ```bash
-analyzer.save_model("custom_model_name")
-analyzer.load_model("custom_model_name")
+analyzer.saveModel("custom_model_name")
+analyzer.loadModel("custom_model_name")
 ```
 
 Batch CSV processing:
 
 ```bash
-analyzer.analyze_csv("input.csv", "output.csv")
+analyzer.analyzeCSV("input.csv", "output.csv")
 ```
 
 ## Contribution
