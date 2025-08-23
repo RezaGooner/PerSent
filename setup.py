@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="PerSent",
-    version="1.3.2",
+    version="1.3.3",
     author="RezaGooner",
     author_email="RezaAsadiProgrammer@Gmail.com",
     description="Persian Sentiment Analysis Toolkit",
@@ -18,12 +18,14 @@ setup(
     },
     include_package_data=True,
     install_requires=[
-        'hazm>=0.7.0',
-        'gensim>=4.0.0',
-        'scikit-learn>=1.0.0',
-        'pandas>=1.3.0',
-        'tqdm>=4.62.0',
-        'joblib>=1.1.0'
+    'hazm>=0.7.0',
+    'gensim>=4.3.0',
+    'numpy<2.0,>=1.26.4',
+    'scipy<1.14.0,>=1.11.0',
+    'scikit-learn>=1.0.0',
+    'pandas>=1.3.0',
+    'tqdm>=4.62.0',
+    'joblib>=1.1.0'
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
