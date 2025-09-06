@@ -7,7 +7,7 @@ tags:
   - Emotion Analysis
   - Persian Language Processing
 authors:
-  - name: Reza Asadi
+  - name: "Reza Asadi"
     orcid: "0009-0005-6852-5756"
     affiliation: 1
 affiliations:
