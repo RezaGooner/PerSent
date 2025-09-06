@@ -10,7 +10,6 @@ tags:
 authors:
   - name: Reza Asadi
     orcid: 0009-0005-6852-5756
-    email: RezaAsadiProgrammer@gmail.com
     affiliation: 1
 affiliations:
   - name: Department of Computer Engineering, Yasuj University, Yasuj, Iran
