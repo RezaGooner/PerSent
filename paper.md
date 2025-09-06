@@ -1,5 +1,5 @@
 ---
-title: "PerSent: A Python Library for Persian Sentiment and Emotion Analysis"
+title: "PerSent - A Python Library for Persian Sentiment and Emotion Analysis"
 tags:
   - Python
   - NLP
