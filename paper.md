@@ -1,20 +1,24 @@
+---
 title: "PerSent: A Python Library for Persian Sentiment and Emotion Analysis"
+
 tags:
-- Python
-- NLP
-- Sentiment Analysis
-- Emotion Analysis
-- Persian Language Processing
+  - Python
+  - NLP
+  - Sentiment Analysis
+  - Emotion Analysis
+  - Persian Language Processing
 authors:
-- name: Reza Asadi
+  - name: Reza Asadi
     orcid: 0009-0005-6852-5756
+    email: RezaAsadiProgrammer@gmail.com
     affiliation: 1
 affiliations:
-- name: Department of Computer Engineering, Yasuj University, Yasuj, Iran
+  - name: Department of Computer Engineering, Yasuj University, Yasuj, Iran
     index: 1
 date: 2025-09-05
 bibliography: paper.bib
 ---
+
 
 # Summary
 
