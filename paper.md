@@ -18,7 +18,6 @@ date: 2025-09-05
 bibliography: paper.bib
 ---
 
-
 # Summary
 
 **PerSent** is an open-source Python library designed for sentiment and emotion analysis in Persian texts.  
@@ -84,5 +83,3 @@ print(analyzer.analyzeText("امتحانم رو خراب کردم.")) # The outp
 I acknowledge the support of the Persian NLP community, contributors to open-source Python libraries such as `gensim` and `scikit-learn`, and dataset providers whose corpora were invaluable for testing.
 
 # References
-
-
