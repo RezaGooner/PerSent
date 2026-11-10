@@ -1,6 +1,7 @@
-"""Recommendation / polarity classifier for Persian product and service reviews.
+"""Deprecated 1.x interface for review polarity — use :class:`PerSent.PolarityClassifier`.
 
-Predicts one of ``"recommended"``, ``"not_recommended"`` or ``"no_idea"``.
+Kept so that code written for PerSent <= 1.4 keeps working unchanged. It will be
+removed in PerSent 2.0.
 """
 
 from __future__ import annotations
@@ -10,68 +11,74 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
-from ._models import LinearClassifier, WordEmbeddings, load_comment_model, save_comment_model
-from ._text import COMMENT_STRIP_RE, WHITESPACE_RE, hazm_tools, to_text, word_tokenize
-from ._utils import bundled_model_path, logger, read_csv, resolve_column, warn_legacy_pickle
-from .exceptions import DataValidationError, ModelFileError, ModelNotLoadedError
+from ._text import clean_polarity_text, polarity_tokens
+from ._utils import logger, warn_deprecated
+from .exceptions import DataValidationError, ModelNotLoadedError
+from .polarity import EMPTY_TEXT_LABEL, LABELS, MODEL_FILENAME, PolarityClassifier
 
-LABELS = ("not_recommended", "recommended", "no_idea")
-EMPTY_TEXT_LABEL = "no_idea"
-MODEL_FILENAME = "comment_model.npz"
-_LEGACY_LABELS = {0: "not_recommended", 1: "recommended", 2: "no_idea"}
+__all__ = ["EMPTY_TEXT_LABEL", "LABELS", "MODEL_FILENAME", "CommentAnalyzer"]
 
 
 class CommentAnalyzer:
-    """Classify Persian comments as recommended / not_recommended / no_idea.
+    """Deprecated: use :class:`PerSent.PolarityClassifier`.
 
-    Args:
-        model_dir: Directory used by :meth:`saveModel` and :meth:`loadModel` for
-            your own trained models. If ``None`` (default), :meth:`loadModel`
-            loads the pre-trained model shipped with PerSent and :meth:`train`
-            does not write anything to disk.
-
-    Example:
-        >>> analyzer = CommentAnalyzer()
-        >>> analyzer.loadModel()
-        >>> analyzer.analyzeText("کیفیت عالی داشت")
-        'recommended'
+    ==============================  ===================================================
+    1.x                             1.5+
+    ==============================  ===================================================
+    ``CommentAnalyzer()``           ``PolarityClassifier()``
+    ``loadModel()``                 ``PolarityClassifier.pretrained()`` / ``.load(dir)``
+    ``saveModel()``                 ``save(dir)``
+    ``train(csv)``                  ``fit_csv(csv)`` (returns a report)
+    ``analyzeText(t)``              ``predict(t)`` / ``analyze(t)``
+    ``analyzeCSV(i, o, s, col)``    ``analyze_csv(i, o, text_column=col, summary_csv=s)``
+    ==============================  ===================================================
     """
 
     def __init__(self, model_dir: str | os.PathLike | None = None) -> None:
+        warn_deprecated("CommentAnalyzer", "PerSent.PolarityClassifier")
         self.model_dir = Path(model_dir) if model_dir is not None else None
-        self.vectorizer: WordEmbeddings | None = None
-        self.classifier: LinearClassifier | None = None
+        self._clf = PolarityClassifier()
         self.last_accuracy: float | None = None
 
-    # ------------------------------------------------------------------ text
+    # 1.4 exposed these attributes
+    @property
+    def vectorizer(self):
+        return self._clf.embeddings
+
+    @vectorizer.setter
+    def vectorizer(self, value) -> None:
+        self._clf.embeddings = value
+
+    @property
+    def classifier(self):
+        return self._clf.classifier
+
+    @classifier.setter
+    def classifier(self, value) -> None:
+        self._clf.classifier = value
+
+    @property
+    def model(self) -> PolarityClassifier:
+        """The underlying :class:`PolarityClassifier`."""
+        return self._clf
+
     def _clean_text(self, text: object) -> str:
-        """Normalize and strip punctuation/digits; returns '' if nothing is left."""
-        text = hazm_tools()["normalizer"].normalize(to_text(text))
-        text = COMMENT_STRIP_RE.sub(" ", text)
-        return WHITESPACE_RE.sub(" ", text).strip()
+        return clean_polarity_text(text)
 
     def _preprocess_text(self, text: object) -> list[str]:
-        """Normalize, clean, tokenize, drop stop-words and stem a Persian text."""
-        text = self._clean_text(text)
-        if not text:
-            return []
-        tools = hazm_tools()
-        stemmer, stopwords = tools["stemmer"], tools["stopwords"]
-        return [stemmer.stem(tok) for tok in word_tokenize(text) if tok not in stopwords and len(tok) > 1]
+        return polarity_tokens(text)
 
     def _sentence_vector(self, tokens: list[str]) -> np.ndarray:
         self._require_model()
-        return self.vectorizer.sentence_vector(tokens)
+        return self._clf.embeddings.sentence_vector(tokens)
 
     def _require_model(self) -> None:
-        if self.classifier is None or self.vectorizer is None:
+        if not self._clf.is_fitted:
             raise ModelNotLoadedError(
                 "Model not trained! Call train() first or load a pretrained model with loadModel()."
             )
 
-    # -------------------------------------------------------------- training
     def train(
         self,
         train_csv: str | os.PathLike,
@@ -83,147 +90,54 @@ class CommentAnalyzer:
         label_column: str = "recommendation_status",
         workers: int = 4,
     ) -> float:
-        """Train a Word2Vec + logistic-regression model from a CSV file.
-
-        The CSV must contain a text column (default ``body``) and a label column
-        (default ``recommendation_status``) whose values are ``recommended``,
-        ``not_recommended`` or ``no_idea``. Empty labels are treated as ``no_idea``.
-
-        If ``model_dir`` was given, the trained model is saved there.
-
-        Returns:
-            Accuracy on the held-out test split (``nan`` if ``test_size`` is 0).
-        """
-        from gensim.models import Word2Vec
-        from sklearn.linear_model import LogisticRegression
-        from sklearn.model_selection import train_test_split
-
-        df = read_csv(train_csv, "Training")
-        missing = [c for c in (text_column, label_column) if c not in df.columns]
-        if missing:
-            raise DataValidationError(
-                f"CSV file must contain '{text_column}' and '{label_column}' columns (missing: {missing})"
-            )
-
-        labels = df[label_column].fillna(EMPTY_TEXT_LABEL).astype(str).str.strip()
-        unknown = sorted(set(labels) - set(LABELS))
-        if unknown:
-            raise DataValidationError(f"Unknown labels {unknown}; allowed labels are {list(LABELS)}")
-
-        tokens = [self._preprocess_text(t) for t in tqdm(df[text_column], desc="Preprocessing")]
-        w2v = Word2Vec(
-            sentences=tokens,
+        """Train from a CSV; returns held-out accuracy (``nan`` without a test split)."""
+        report = self._clf.fit_csv(
+            train_csv,
+            text_column=text_column,
+            label_column=label_column,
+            test_size=test_size,
             vector_size=vector_size,
             window=window,
-            min_count=1,
+            random_state=random_state,
             workers=workers,
-            seed=random_state if random_state is not None else 1,
+            show_progress=True,
         )
-        embeddings = WordEmbeddings(list(w2v.wv.index_to_key), w2v.wv.vectors)
-        X = np.vstack([embeddings.sentence_vector(t) for t in tokens])
-        y = labels.to_numpy()
-
-        if test_size and test_size > 0:
-            counts = pd.Series(y).value_counts()
-            stratify = y if counts.min() >= 2 and len(counts) > 1 else None
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=test_size, random_state=random_state, stratify=stratify
-            )
-        else:
-            X_train, y_train, X_test, y_test = X, y, None, None
-
-        if len(set(y_train)) < 2:
-            raise DataValidationError("Training data must contain at least two different labels")
-
-        sk_model = LogisticRegression(max_iter=1000)
-        sk_model.fit(X_train, y_train)
-
-        self.vectorizer = embeddings
-        self.classifier = LinearClassifier.from_sklearn(sk_model)
-
-        accuracy = float("nan")
-        if X_test is not None and len(X_test):
-            accuracy = float(np.mean(np.array(self.classifier.predict(X_test)) == y_test))
-        self.last_accuracy = accuracy
-
+        self.last_accuracy = report.accuracy if report.accuracy is not None else float("nan")
         if self.model_dir is not None:
             self.saveModel()
         else:
             logger.info("Model trained in memory; pass model_dir or call saveModel(path) to keep it.")
-        return accuracy
+        return self.last_accuracy
 
-    # ------------------------------------------------------------ inference
     def analyzeText(self, text: str) -> str:
-        """Return ``"recommended"``, ``"not_recommended"`` or ``"no_idea"`` for one text.
-
-        Texts without any letters (empty, only numbers/punctuation) return
-        ``"no_idea"``. Note that hazm's stop-word list contains common opinion
-        words such as "خوب" and "عالی"; texts made only of such words are still
-        classified by the model (as in previous versions).
-        """
         self._require_model()
-        cleaned = self._clean_text(text)
-        if not cleaned:
-            return EMPTY_TEXT_LABEL
-        tokens = self._preprocess_text(cleaned)
-        return self.classifier.predict(self.vectorizer.sentence_vector(tokens))[0]
+        return self._clf.predict(text)
 
     def analyzeTexts(self, texts, show_progress: bool = False) -> list[str]:
-        """Analyze an iterable of texts and return a list of labels."""
-        iterator = tqdm(texts, desc="Analyzing comments") if show_progress else texts
-        return [self.analyzeText(t) for t in iterator]
+        self._require_model()
+        return self._clf.predict_many(texts, show_progress=show_progress)
 
-    # ---------------------------------------------------------- persistence
     def saveModel(self, model_dir: str | os.PathLike | None = None) -> Path:
-        """Save the trained model to ``model_dir`` (or the analyzer's ``model_dir``).
-
-        Returns the path of the written file.
-        """
         self._require_model()
         target = Path(model_dir) if model_dir is not None else self.model_dir
         if target is None:
             raise ValueError("No model_dir given: use CommentAnalyzer(model_dir=...) or saveModel(model_dir=...)")
-        path = target / MODEL_FILENAME
-        save_comment_model(path, self.vectorizer, self.classifier)
-        logger.info("Model saved to %s", path)
-        return path
+        return self._clf.save(target)
 
     def loadModel(self, model_dir: str | os.PathLike | None = None) -> None:
-        """Load a model.
-
-        Looks in ``model_dir`` (argument, else the analyzer's ``model_dir``). If no
-        directory is set, or it contains no model, the pre-trained model bundled
-        with PerSent is loaded. The current working directory is never searched.
-        """
+        """Load from ``model_dir`` if it holds a model, else the bundled pre-trained one."""
         directory = Path(model_dir) if model_dir is not None else self.model_dir
         if directory is not None:
-            path = directory / MODEL_FILENAME
-            if path.exists():
-                self.vectorizer, self.classifier = load_comment_model(path)
+            if (directory / MODEL_FILENAME).exists():
+                self._clf = PolarityClassifier.load(directory)
                 return
             legacy_clf, legacy_w2v = directory / "classifier.joblib", directory / "word2vec.model"
             if legacy_clf.exists() and legacy_w2v.exists():
-                self._load_legacy(legacy_clf, legacy_w2v)
+                self._clf = PolarityClassifier._load_legacy(legacy_clf, legacy_w2v, stacklevel=5)
                 return
             logger.warning("No model found in %s; loading the bundled pre-trained model.", directory)
+        self._clf = PolarityClassifier.pretrained()
 
-        path = bundled_model_path(MODEL_FILENAME)
-        if not path.exists():
-            raise ModelFileError(f"Bundled model {path} is missing; reinstall PerSent")
-        self.vectorizer, self.classifier = load_comment_model(path)
-
-    def _load_legacy(self, clf_path: Path, w2v_path: Path) -> None:
-        import joblib
-        from gensim.models import Word2Vec
-
-        warn_legacy_pickle(clf_path.parent)
-        clf = joblib.load(clf_path)
-        w2v = Word2Vec.load(str(w2v_path))
-        labels = [_LEGACY_LABELS.get(int(c), str(c)) if str(c).isdigit() else str(c) for c in clf.classes_]
-        self.vectorizer = WordEmbeddings(list(w2v.wv.index_to_key), w2v.wv.vectors)
-        self.classifier = LinearClassifier.from_sklearn(clf, labels)
-
-    # ------------------------------------------------------------------ CSV
     def analyzeCSV(
         self,
         input_csv: str | os.PathLike,
@@ -231,25 +145,10 @@ class CommentAnalyzer:
         summary_path: str | os.PathLike | None = None,
         text_column: int | str = 0,
     ) -> pd.DataFrame | None:
-        """Analyze every comment in a CSV file.
-
-        Adds a ``sentiment`` column and writes the result to ``output_path``
-        (UTF-8 with BOM, so it opens correctly in Excel). If ``summary_path`` is
-        given, a per-label count/percentage report is written there too.
-
-        ``text_column`` is a column name or a 0-based (optionally negative) index.
-
-        Returns:
-            The resulting DataFrame, or ``None`` if the analysis failed (the
-            error is logged).
-        """
+        """Analyze a CSV column; returns the DataFrame or ``None`` on error (logged)."""
         try:
             self._require_model()
-            df = read_csv(input_csv)
-            column = resolve_column(df, text_column)
-            df["sentiment"] = self.analyzeTexts(df[column].tolist(), show_progress=True)
-            df.to_csv(output_path, index=False, encoding="utf-8-sig")
-            logger.info("Results saved to %s", output_path)
+            df = self._clf.analyze_csv(input_csv, output_path, text_column=text_column, output_column="sentiment")
             if summary_path:
                 self._generate_summary(df).to_csv(summary_path, index=False, encoding="utf-8-sig")
                 logger.info("Summary report saved to %s", summary_path)
@@ -258,7 +157,7 @@ class CommentAnalyzer:
             logger.error("File not found - %s", exc)
         except (DataValidationError, ValueError) as exc:
             logger.error("Invalid column specification - %s", exc)
-        except Exception as exc:  # keep the historical "return None on failure" contract
+        except Exception as exc:
             logger.error("Error during CSV analysis: %s", exc)
         return None
 
@@ -277,6 +176,3 @@ class CommentAnalyzer:
                 "Percentage": [pct(rec), pct(notrec), pct(noidea), "100%", "N/A"],
             }
         )
-
-
-__all__ = ["CommentAnalyzer"]

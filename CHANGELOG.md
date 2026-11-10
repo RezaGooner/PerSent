@@ -4,7 +4,31 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [1.4.0] - Unreleased
+## [1.5.0] - Unreleased
+
+### Added
+- New API with snake_case methods and result objects:
+  - `PolarityClassifier`: `pretrained()`, `load()`, `save()`, `predict()`, `predict_many()`, `predict_proba()`,
+    `analyze()` / `analyze_many()` (→ `PolarityResult` with per-label probabilities), `fit()` / `fit_csv()`
+    (→ `TrainingReport` with accuracy, macro-F1 and per-label metrics), `evaluate()` / `evaluate_csv()`
+    (→ `EvaluationReport` with a confusion matrix), `analyze_csv()` (optional probability columns) and `summarize()`.
+  - `EmotionAnalyzer`: `pretrained()`, `load()`, `save()`, `analyze()` / `analyze_many()` (→ `EmotionResult` with
+    `dominant`, `matched_words`, English names), `scores()`, `dominant()`, `fit_csv()`, `add_lexicon()`, `add_word()`,
+    `analyze_csv()` (one column per emotion plus `dominant_emotion`).
+  - Training/analysis methods accept a CSV path or a `pandas.DataFrame`; emotions may be given in Persian or English.
+- `persent` command-line tool (`polarity`, `emotion`, `csv`, `train`, `evaluate`), also as `python -m PerSent`.
+- `PolarityResult`, `EmotionResult`, `TrainingReport`, `EvaluationReport`, `EMOTIONS`, `EMOTION_NAMES_EN`, `LABELS`
+  exported from the package.
+
+### Changed
+- Polarity predictions are computed in batches (faster for CSV files); results are unchanged.
+- Emotion scores are always returned in the same order (شادی, غم, ترس, عصبانیت, تنفر, شگفتی, آرامش).
+
+### Deprecated
+- `CommentAnalyzer` and `SentimentAnalyzer` (and their camelCase methods) now emit a `DeprecationWarning`. They
+  keep their exact 1.4 behaviour and will be removed in PerSent 2.0. See the migration table in the README.
+
+## [1.4.0] - 2026-11-10
 
 ### Added
 - `pyproject.toml` packaging (hatchling) with a single version source (`src/PerSent/_version.py`).
@@ -48,5 +72,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [1.3.3] - 2025-08-22
 - Last release with the original `setup.py` layout and pickle-based models.
 
-[1.4.0]: https://github.com/RezaGooner/PerSent/compare/088b919...HEAD
+[1.5.0]: https://github.com/RezaGooner/PerSent/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/RezaGooner/PerSent/compare/088b919...v1.4.0
 [1.3.3]: https://pypi.org/project/PerSent/1.3.3/

@@ -1,3 +1,5 @@
+"""Behaviour of the deprecated 1.x classes must not change until they are removed."""
+
 from __future__ import annotations
 
 import os
@@ -9,6 +11,8 @@ import pytest
 from PerSent import CommentAnalyzer, ModelNotLoadedError
 from PerSent._text import COMMENT_STRIP_RE
 from PerSent.exceptions import DataValidationError
+
+pytestmark = pytest.mark.filterwarnings("ignore::DeprecationWarning")
 
 LABELS = {"recommended", "not_recommended", "no_idea"}
 
