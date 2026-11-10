@@ -1,0 +1,48 @@
+# Publishes to PyPI when a GitHub Release is published.
+# Uses PyPI Trusted Publishing (no API token needed). One-time setup on PyPI:
+#   https://pypi.org/manage/project/PerSent/settings/publishing/
+#   Owner: RezaGooner  Repository: PerSent  Workflow: publish.yml  Environment: pypi
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check that the tag matches the package version
+        run: |
+          VERSION=$(python -c "import re;print(re.search(r'\"(.+)\"', open('src/PerSent/_version.py').read()).group(1))")
+          TAG="${GITHUB_REF_NAME#v}"
+          if [ "$VERSION" != "$TAG" ]; then echo "Tag $GITHUB_REF_NAME does not match version $VERSION"; exit 1; fi
+      - run: pip install build twine
+      - run: python -m build
+      - run: twine check --strict dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/PerSent/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

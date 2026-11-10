@@ -28,7 +28,7 @@ Paste any screenshots or logs that help explain.
 ### Environment
 - OS: [e.g. Ubuntu 24.04, Windows 11]
 - Python: [e.g. 3.11]
-- PerSent: [e.g. 0.3.1]
+- PerSent: [e.g. 1.4.0] (`python -c "import PerSent; print(PerSent.__version__)"`)
 
 ### Additional context
 Anything else related to the problem.
