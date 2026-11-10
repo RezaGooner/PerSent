@@ -1,3 +1,5 @@
+"""Behaviour of the deprecated 1.x classes must not change until they are removed."""
+
 from __future__ import annotations
 
 import os
@@ -6,6 +8,8 @@ import pandas as pd
 import pytest
 
 from PerSent import ModelFileError, ModelNotLoadedError, SentimentAnalyzer
+
+pytestmark = pytest.mark.filterwarnings("ignore::DeprecationWarning")
 
 EMOTIONS = {"شادی", "غم", "ترس", "عصبانیت", "تنفر", "شگفتی", "آرامش"}
 DATASET = os.path.join(os.path.dirname(__file__), os.pardir, "dataset", "emotion_dataset.csv")

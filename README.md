@@ -8,13 +8,12 @@
 
 ![PerSent Logo](https://github.com/user-attachments/assets/6bb1633b-6ed3-47fa-aae2-f97886dc4e22)
 
-PerSent is a lightweight Python library for **sentiment and emotion analysis of Persian (Farsi) text**.
+PerSent is a lightweight Python library and command-line tool for **sentiment and emotion analysis of Persian (Farsi) text**.
 
-- **`CommentAnalyzer`** classifies product/service reviews as `recommended`, `not_recommended` or `no_idea`
-  (Word2Vec sentence embeddings + logistic regression).
-- **`SentimentAnalyzer`** scores seven emotions with a weighted lexicon:
+- **`PolarityClassifier`** labels product/service reviews as `recommended`, `not_recommended` or `no_idea`, with probabilities.
+- **`EmotionAnalyzer`** scores seven emotions with a weighted lexicon:
   شادی (happiness), غم (sadness), ترس (fear), عصبانیت (anger), تنفر (disgust), شگفتی (surprise), آرامش (calmness).
-- Single texts or whole CSV files, pre-trained models included, train your own models from CSV.
+- Pre-trained models included (no download at runtime), CSV in/out, train and evaluate your own models.
 
 ## Installation
 
@@ -22,117 +21,150 @@ PerSent is a lightweight Python library for **sentiment and emotion analysis of 
 pip install PerSent
 ```
 
-Requires Python 3.10–3.13. Pre-trained models are bundled with the package, so no download is needed at runtime.
+Requires Python 3.10–3.13.
 
 ## Quick start
 
-### Review / comment polarity
+### Review polarity
 
 ```python
-from PerSent import CommentAnalyzer
+from PerSent import PolarityClassifier
 
-analyzer = CommentAnalyzer()
-analyzer.loadModel()                         # bundled pre-trained model
+clf = PolarityClassifier.pretrained()
 
-analyzer.analyzeText("کیفیت عالی داشت")       # 'recommended'
-analyzer.analyzeText("افتضاح بود")            # 'not_recommended'
-analyzer.analyzeTexts(["خوب بود", "بد بود"])   # list of labels
-```
+clf.predict("کیفیت عالی داشت")                 # 'recommended'
+clf.predict_proba("کیفیت عالی داشت")           # {'not_recommended': 0.13, 'recommended': 0.74, 'no_idea': 0.13}
 
-Batch-process a CSV file (adds a `sentiment` column):
+result = clf.analyze("افتضاح بود")
+result.label, result.confidence                # ('not_recommended', 0.9998)
 
-```python
-analyzer.analyzeCSV("comments.csv", "results.csv")                 # first column
-analyzer.analyzeCSV("comments.csv", "results.csv", None, -1)       # last column
-analyzer.analyzeCSV("comments.csv", "results.csv", None, "نظرات")  # column by name
-analyzer.analyzeCSV("comments.csv", "results.csv", "summary.csv")  # + summary report
+clf.predict_many(["خوب بود", "پولم هدر رفت"])    # batch
 ```
 
 ### Emotions
 
 ```python
-from PerSent import SentimentAnalyzer
+from PerSent import EmotionAnalyzer
 
-analyzer = SentimentAnalyzer()
-analyzer.loadModel()
+emo = EmotionAnalyzer.pretrained()
+result = emo.analyze("امتحانم رو خراب کردم. احساس می‌کنم یک شکست خورده‌ی تمام عیارم.")
 
-result = analyzer.analyzeText("امتحانم رو خراب کردم. احساس می‌کنم یک شکست خورده‌ی تمام عیارم.")
-for emotion, score in sorted(result.items(), key=lambda x: x[1], reverse=True):
-    print(f"{emotion}: {score:.2f}%")
+result.scores          # {'شادی': 0.0, 'غم': 36.0, 'ترس': 28.0, 'عصبانیت': 36.0, ...}
+result.dominant        # 'غم'
+result.matched_words   # lexicon words that produced the scores
+result.scores_en()     # {'happiness': 0.0, 'sadness': 36.0, 'fear': 28.0, 'anger': 36.0, ...}
+result.to_dict(lang="en")
 ```
 
-```text
-غم: 36.00%
-عصبانیت: 36.00%
-ترس: 28.00%
-شادی: 0.00%
-...
-```
+### CSV files
 
 ```python
-analyzer.analyzeCSV("input.csv", "output.csv")   # text column 'text' -> 'sentiment_analysis'
+clf.analyze_csv("comments.csv", "results.csv", text_column="نظرات",   # name or 0-based / negative index
+                include_scores=True, summary_csv="summary.csv")
+
+emo.analyze_csv("texts.csv", "emotions.csv", text_column="text", lang="en")  # one column per emotion
 ```
 
-## Training and saving your own models
+Both methods also accept a `pandas.DataFrame` and return the resulting DataFrame. Output files are UTF-8 with BOM, so
+they open correctly in Excel.
 
-Pass a `model_dir` to keep your own models. Without it, `loadModel()` always loads the bundled
-pre-trained model and `train()` keeps the result in memory only.
+### Command line
+
+```bash
+persent polarity "کیفیت عالی داشت" "افتضاح بود" --proba
+echo "خیلی خوشحالم" | persent emotion --lang en
+persent emotion --file texts.txt --json                    # one JSON object per line
+persent csv comments.csv -o results.csv -c نظرات --scores --summary summary.csv
+persent csv texts.csv -o emotions.csv --task emotion -c text
+persent train polarity train.csv -o my_model/ --seed 42
+persent evaluate test.csv -m my_model/
+```
+
+`python -m PerSent ...` works as well. Run `persent <command> --help` for all options.
+
+## Training, evaluating and saving models
 
 ```python
-from PerSent import CommentAnalyzer, SentimentAnalyzer
+from PerSent import PolarityClassifier, EmotionAnalyzer
 
-comments = CommentAnalyzer(model_dir="my_models")
-accuracy = comments.train("train.csv", random_state=42)   # saved to my_models/comment_model.npz
-comments.loadModel()                                        # later: loads from my_models/
+clf = PolarityClassifier()
+report = clf.fit_csv("dataset/train.csv", random_state=42)   # columns: body, recommendation_status
+print(report)                  # Trained on ... texts, tested on ...: accuracy=..., macro-F1=...
+clf.save("my_model/")          # -> my_model/comment_model.npz
+clf = PolarityClassifier.load("my_model/")
+print(clf.evaluate_csv("test.csv"))
 
-emotions = SentimentAnalyzer(model_dir="my_models")
-emotions.train("dataset/emotion_dataset.csv")              # saved to my_models/weighted_sentiment_model.json
-emotions.saveModel("custom")                                # my_models/custom.json
-emotions.loadModel("custom")
+emo = EmotionAnalyzer.pretrained()          # or EmotionAnalyzer() to start empty
+emo.fit_csv("dataset/emotion_dataset.csv")  # columns: text, sentiment, weight
+emo.add_lexicon("my_words.csv")             # word, emotion, weight
+emo.add_word("سرمست", "happiness", weight=1.5)   # single words only
+emo.save("my_emotions.json")
+emo = EmotionAnalyzer.load("my_emotions.json")
 ```
+
+Models are stored as plain `.npz` / `.json` files — loading them never executes code.
 
 ## API reference
 
-### `CommentAnalyzer(model_dir=None)`
+### `PolarityClassifier`
 
-| Method | Description |
+| Member | Description |
 |---|---|
-| `train(train_csv, test_size=0.2, vector_size=100, window=5, random_state=None, text_column="body", label_column="recommendation_status", workers=4)` | Train from a CSV. Labels must be `recommended`, `not_recommended` or `no_idea`; empty labels count as `no_idea`. Returns held-out accuracy. Saves to `model_dir` if set. |
-| `analyzeText(text)` | Label for one text. Texts without letters (empty, digits only, …) return `no_idea`. |
-| `analyzeTexts(texts, show_progress=False)` | Labels for many texts. |
-| `analyzeCSV(input_csv, output_path, summary_path=None, text_column=0)` | Analyze a CSV column (name or 0-based / negative index). Returns a DataFrame, or `None` on error. |
-| `saveModel(model_dir=None)` / `loadModel(model_dir=None)` | Save / load `comment_model.npz`. `loadModel` falls back to the bundled model. |
+| `PolarityClassifier.pretrained()` | Bundled model. |
+| `PolarityClassifier.load(path)` / `save(path)` | Directory (`comment_model.npz`) or `.npz` file. 1.x pickle folders load with a warning. |
+| `predict(text)` / `predict_many(texts)` | Label(s). Texts without letters return `no_idea`. |
+| `predict_proba(text)` | `{label: probability}`. |
+| `analyze(text)` / `analyze_many(texts)` | `PolarityResult(text, label, scores)` with `.confidence`, `.label_fa`, `.to_dict()`. |
+| `fit(texts, labels, *, vector_size=100, window=5, min_count=1, epochs=5, test_size=0.2, random_state=None, C=1.0, ...)` | Train Word2Vec + logistic regression. Returns a `TrainingReport` (accuracy, macro-F1, per-label metrics on a stratified hold-out split). |
+| `fit_csv(data, text_column="body", label_column="recommendation_status", **fit_kwargs)` | `fit` on a CSV path or DataFrame. |
+| `evaluate(texts, labels)` / `evaluate_csv(data, ...)` | `EvaluationReport` with accuracy, macro-F1, per-label metrics and confusion matrix. |
+| `analyze_csv(input, output=None, *, text_column=0, output_column="sentiment", include_scores=False, summary_csv=None)` | Analyze a column; returns a DataFrame. |
 
-### `SentimentAnalyzer(model_dir=None)`
+### `EmotionAnalyzer`
 
-| Method | Description |
+| Member | Description |
 |---|---|
-| `train(train_csv, text_col="text", emotion_col=None, weight_col="weight", reset=False)` | Learn weighted emotion words from a CSV. `emotion_col` defaults to `sentiment` (or `emotion`). Merges into the current model unless `reset=True`. Returns `{"status", "message"}`. |
-| `loadLex(csv_file, word_col=0, emotion_col=1, weight_col=2)` | Add a word/emotion/weight lexicon. Columns by index, or by name for CSVs with a header. Invalid weights default to 1.0. |
-| `analyzeText(text)` | `{emotion: percentage}` for the seven emotions (all 0.0 if no lexicon word is found). |
-| `analyzeCSV(input_csv, output_csv, text_col="text", output_col="sentiment_analysis")` | Analyze a CSV. Returns `True` / `False`. |
-| `saveModel(model_name="weighted_sentiment_model", model_dir=None)` / `loadModel(...)` | Save / load `<model_name>.json`. |
+| `EmotionAnalyzer.pretrained()` | Bundled lexicon. |
+| `EmotionAnalyzer.load(path)` / `save(path)` | `.json` file or directory. |
+| `analyze(text)` / `analyze_many(texts)` | `EmotionResult(text, scores, matched_words)` with `.dominant`, `.dominant_en`, `.scores_en()`, `.to_dict(lang)`. |
+| `scores(text)` / `dominant(text)` | Shortcuts. |
+| `fit_csv(data, text_column="text", emotion_column=None, weight_column="weight", *, reset=False)` | Learn emotion words from labelled texts (merged into the current lexicon unless `reset=True`). |
+| `add_lexicon(data, word_column=0, emotion_column=1, weight_column=2)` | Add a word/emotion/weight table. Emotions may be Persian or English names. |
+| `add_word(word, emotion, weight=1.0)` | Add a single word. |
+| `analyze_csv(input, output=None, *, text_column="text", expand=True, lang="fa")` | One column per emotion plus `dominant_emotion`. |
 
-Errors derive from `PerSent.PerSentError` (`ModelNotLoadedError`, `ModelFileError`, `DataValidationError`).
-Progress and status messages use the standard `logging` module (logger name `"PerSent"`).
+Errors derive from `PerSent.PerSentError`: `ModelNotLoadedError`, `ModelFileError`, `DataValidationError`
+(which is also a `ValueError`). Messages are logged with the standard `logging` module (logger `"PerSent"`).
 
 ## Model quality and limitations
 
-- The bundled comment model reaches about **65 % accuracy** (macro-F1 ≈ 0.64) on a 10 000-review sample of
-  [`dataset/train.csv`](dataset/train.csv) (three balanced classes, so chance level is 33 %). Better models are planned.
+- The bundled polarity model reaches about **65 % accuracy** (macro-F1 ≈ 0.64) on a 10 000-review sample of
+  [`dataset/train.csv`](dataset/train.csv) — three balanced classes, so chance level is 33 %. Better models are planned.
 - The emotion analyzer is lexicon-based and does **not handle negation** yet ("خوشحال نیستم" is scored as happiness).
-- hazm's stop-word list contains common opinion words such as "خوب" and "عالی", which are removed before
-  classification.
+- hazm's stop-word list contains opinion words such as "خوب", "بد" and "عالی", which are removed before
+  classification; short reviews made only of such words are therefore unreliable.
 
 A larger training set is available [here](https://github.com/RezaGooner/Sentiment-Survey-Analyzer/tree/main/Dataset/big_train).
 
-## Upgrading from 1.3.x
+## Upgrading from 1.x
 
-- Models are stored in safe, pickle-free formats (`.npz` / `.json`). Models you saved with 1.3.x can still be loaded
-  with `CommentAnalyzer(model_dir=...)` / `SentimentAnalyzer(model_dir=...)` (a `DeprecationWarning` is shown);
-  call `saveModel()` once to convert them. `scripts/convert_legacy_models.py` converts a folder in one go.
-- PerSent no longer creates or reads a `PerSent/model` folder in the current working directory. Pass `model_dir`
-  explicitly to save and load your own models.
+`CommentAnalyzer` and `SentimentAnalyzer` still work exactly as before but emit a `DeprecationWarning`; they will be
+removed in PerSent 2.0.
+
+| 1.x | 1.5+ |
+|---|---|
+| `a = CommentAnalyzer(); a.loadModel()` | `clf = PolarityClassifier.pretrained()` |
+| `a.analyzeText(t)` | `clf.predict(t)` (or `clf.analyze(t)` for probabilities) |
+| `a.analyzeTexts(ts)` | `clf.predict_many(ts)` |
+| `a.train(csv)` → accuracy | `clf.fit_csv(csv)` → `TrainingReport` |
+| `a.saveModel()` / `a.loadModel()` with `model_dir` | `clf.save(dir)` / `PolarityClassifier.load(dir)` |
+| `a.analyzeCSV(i, o, s, col)` → DataFrame or `None` | `clf.analyze_csv(i, o, text_column=col, summary_csv=s)` (raises on error) |
+| `s = SentimentAnalyzer(); s.loadModel()` | `emo = EmotionAnalyzer.pretrained()` |
+| `s.analyzeText(t)` | `emo.analyze(t).scores` |
+| `s.train(csv)` → `{"status": ...}` | `emo.fit_csv(csv)` (raises on error) |
+| `s.loadLex(csv)` | `emo.add_lexicon(csv)` |
+| `s.saveModel(name)` / `s.loadModel(name)` | `emo.save(path)` / `EmotionAnalyzer.load(path)` |
+| `s.analyzeCSV(i, o)` → `True` / `False` | `emo.analyze_csv(i, o)` |
 
 See [CHANGELOG.md](CHANGELOG.md) for all changes.
 

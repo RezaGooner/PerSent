@@ -1,21 +1,37 @@
 from __future__ import annotations
 
+import warnings
+
 import pandas as pd
 import pytest
 
-from PerSent import CommentAnalyzer, SentimentAnalyzer
+from PerSent import CommentAnalyzer, EmotionAnalyzer, PolarityClassifier, SentimentAnalyzer
+
+
+@pytest.fixture(scope="session")
+def polarity() -> PolarityClassifier:
+    return PolarityClassifier.pretrained()
+
+
+@pytest.fixture(scope="session")
+def emotions() -> EmotionAnalyzer:
+    return EmotionAnalyzer.pretrained()
 
 
 @pytest.fixture(scope="session")
 def comment_analyzer() -> CommentAnalyzer:
-    analyzer = CommentAnalyzer()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        analyzer = CommentAnalyzer()
     analyzer.loadModel()
     return analyzer
 
 
 @pytest.fixture(scope="session")
 def emotion_analyzer() -> SentimentAnalyzer:
-    analyzer = SentimentAnalyzer()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        analyzer = SentimentAnalyzer()
     analyzer.loadModel()
     return analyzer
 

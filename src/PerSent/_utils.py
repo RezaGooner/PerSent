@@ -41,10 +41,25 @@ def read_csv(path: str | os.PathLike, what: str = "Input") -> pd.DataFrame:
     return pd.read_csv(path)
 
 
+def as_frame(data: str | os.PathLike | pd.DataFrame, what: str = "Input") -> pd.DataFrame:
+    """Accept a CSV path or a DataFrame."""
+    if isinstance(data, pd.DataFrame):
+        return data
+    return read_csv(data, what)
+
+
+def warn_deprecated(old: str, new: str, stacklevel: int = 3) -> None:
+    warnings.warn(
+        f"{old} is deprecated and will be removed in PerSent 2.0; use {new} instead.",
+        DeprecationWarning,
+        stacklevel=stacklevel,
+    )
+
+
 def warn_legacy_pickle(path: Path, stacklevel: int = 4) -> None:
     warnings.warn(
         f"Loading legacy pickle-based model files from {path}. Pickle files can execute code: "
-        "only load files you created yourself. Re-save the model with saveModel() to convert "
+        "only load files you created yourself. Save the model again (save()/saveModel()) to convert "
         "it to the safe format used since PerSent 1.4.0.",
         DeprecationWarning,
         stacklevel=stacklevel,

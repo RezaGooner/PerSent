@@ -67,7 +67,10 @@ jobs:
         run: |
           python -m venv /tmp/wheeltest
           /tmp/wheeltest/bin/pip install dist/*.whl
-          cd /tmp && /tmp/wheeltest/bin/python -c "from PerSent import CommentAnalyzer as C; c=C(); c.loadModel(); assert c.analyzeText('کیفیت عالی داشت') == 'recommended'"
+          cd /tmp
+          /tmp/wheeltest/bin/python -W error::DeprecationWarning -c "from PerSent import PolarityClassifier as P; assert P.pretrained().predict('کیفیت عالی داشت') == 'recommended'"
+          /tmp/wheeltest/bin/persent polarity "کیفیت عالی داشت" | grep -q '^recommended'
+          /tmp/wheeltest/bin/persent emotion "خیلی خوشحالم" --lang en | grep -q '^happiness'
       - uses: actions/upload-artifact@v4
         with:
           name: dist

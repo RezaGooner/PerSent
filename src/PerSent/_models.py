@@ -135,7 +135,8 @@ class EmotionLexicon:
         keywords: Mapping[int, Iterable[str]] | None = None,
         word_weights: Mapping[str, Mapping[int, float]] | None = None,
     ) -> None:
-        self.emotion_map = dict(emotion_map)
+        # keep a stable order (by emotion id) regardless of how the file was written
+        self.emotion_map = {k: int(v) for k, v in sorted(emotion_map.items(), key=lambda kv: int(kv[1]))}
         self.keywords: defaultdict[int, list[str]] = defaultdict(list)
         for k, v in (keywords or {}).items():
             self.keywords[int(k)] = list(v)

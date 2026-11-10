@@ -40,6 +40,9 @@ dependencies = [
     "tqdm>=4.62",
 ]
 
+[project.scripts]
+persent = "PerSent.cli:main"
+
 [project.optional-dependencies]
 dev = ["pytest>=7", "pytest-cov", "ruff>=0.6", "build", "twine"]
 
