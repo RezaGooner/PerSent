@@ -1,0 +1,79 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "PerSent"
+dynamic = ["version"]
+description = "Persian sentiment and emotion analysis toolkit"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Reza Asadi", email = "RezaAsadiProgrammer@Gmail.com" }]
+keywords = ["persian", "farsi", "nlp", "sentiment-analysis", "emotion-detection", "text-classification"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: Persian",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
+    "Typing :: Typed",
+]
+# No numpy/scipy pins: hazm 0.9/0.10 (Python 3.10-3.11) and hazm 0.12 (Python 3.12-3.13)
+# bring their own compatible numpy constraints.
+dependencies = [
+    "hazm>=0.9.3",
+    "gensim>=4.3.2",
+    "numpy>=1.24",
+    "pandas>=1.5",
+    "scikit-learn>=1.2",
+    "joblib>=1.1",
+    "tqdm>=4.62",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "pytest-cov", "ruff>=0.6", "build", "twine"]
+
+[project.urls]
+Homepage = "https://github.com/RezaGooner/PerSent"
+Source = "https://github.com/RezaGooner/PerSent"
+Issues = "https://github.com/RezaGooner/PerSent/issues"
+Changelog = "https://github.com/RezaGooner/PerSent/blob/main/CHANGELOG.md"
+
+[tool.hatch.version]
+path = "src/PerSent/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/PerSent"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/PerSent", "tests", "scripts", "README.md", "README.fa.md", "CHANGELOG.md", "LICENSE"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+filterwarnings = ["ignore::DeprecationWarning:hazm.*", "ignore::DeprecationWarning:nltk.*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.format]
+exclude = ["*.md"]  # keep aligned comments in README examples
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["N999", "RUF001", "RUF002", "RUF003"]  # module names kept for backwards compatibility; Persian text
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]

@@ -1,12 +1,3 @@
----
-name: Pull Request
-about: Submit changes to the PerSent repository
-title: "[PR] Short description of your changes"
-labels: enhancement
-assignees: RezaGooner
-
----
-
 ## Description
 Describe what this PR does:
 - What problem does it solve?

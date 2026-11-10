@@ -1,334 +1,161 @@
-# PerSent (Persian Sentiment Analyzer) 
+# PerSent (Persian Sentiment Analyzer)
 
+[![PyPI](https://img.shields.io/pypi/v/PerSent.svg)](https://pypi.org/project/PerSent/)
+[![Python](https://img.shields.io/pypi/pyversions/PerSent.svg)](https://pypi.org/project/PerSent/)
+[![CI](https://github.com/RezaGooner/PerSent/actions/workflows/ci.yml/badge.svg)](https://github.com/RezaGooner/PerSent/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Persian](https://img.shields.io/badge/Persian-فارسی-blue.svg)](README.fa.md)
 
 ![PerSent Logo](https://github.com/user-attachments/assets/6bb1633b-6ed3-47fa-aae2-f97886dc4e22)
 
-## Introduction
-PerSent is a practical Python library designed for Persian sentiment analysis. The name stands for "Persian Sentiment Analyzer". Currently in its early testing phase, the library provides basic functionality and is available on [PyPI](https://pypi.org/project/PerSent/). Install it using:
-
-```bash
-pip install PerSent
-```
-
-Current capabilities include:
-
-- Sentiment analysis of opinions/comments
-
-- Emotion analysis of texts (happiness, sadness, anger, surprise, fear, disgust, calmness)
-
-- Analysis of product/service reviews (recommended/not recommended/no idea)
-
-- Both single-text and batch CSV processing
-
-- Output displayed in terminal or saved to CSV with summary statistics
-
-Initial repository that evolved into this library:
-[Click here](https://github.com/RezaGooner/Sentiment-Survey-Analyzer)
-
-We welcome user testing and feedback to improve the library. If you encounter bugs or have suggestions, please:
-
-- [Contribute](#contribution)
-
-For installation issues due to dependency conflicts (especially with mingw-w64), consider using online platforms like DeepNote.com.
-
-## Structure
-### Comment Analysis Functions
-
-```train(train_csv, test_size=0.2, vector_size=100, window=5)```
-
-| Parameter     | Data Type | Default Value | Description                                                                 | Optional/Required |
-|--------------|-----------|---------------|-----------------------------------------------------------------------------|-------------------|
-| `train_csv`  | str       | -             | Path to CSV file containing training data with `body` and `recommendation_status` columns | Required          |
-| `test_size`  | float     | 0.2           | Proportion of test data (between 0.0 and 1.0)                               | Optional          |
-| `vector_size`| int       | 100           | Output vector dimension for Word2Vec model (embedding size)                 | Optional          |
-| `window`     | int       | 5             | Context window size for Word2Vec model                                      | Optional          |
-
-recommendation_status must be one of:
-
-- no_idea
-
-- recommended
-
-- not_recommended
-
-Null/NaN values are converted to no_idea, affecting model accuracy.
-
-- Returns test accuracy score.
-
----
-
-  ```analyzeText(text)```
-  
-| Parameter | Data Type | Description                          | Optional/Required |
-|-----------|-----------|--------------------------------------|-------------------|
-| `text`    | str       | The Persian text to be analyzed      | Required          |
-
-The core function that analyzes a text and returns one of:
-"not_recommended", "recommended", or "no_idea".
-
----
-
-```saveModel()```
-
-```loadModel()```
-  
-  Model persistence functions. Models are saved in the model directory.
-
----
-
-```analyzeCSV(input_csv, output_path, summary_path=None, text_column=0)```
-
-| Parameter      | Data Type       | Default Value | Description                                                                 | Optional/Required |
-|----------------|-----------------|---------------|-----------------------------------------------------------------------------|-------------------|
-| `input_csv`    | str             | -             | Path to input CSV file containing comments to analyze                       | Required          |
-| `output_path`  | str             | -             | Path where analyzed results CSV will be saved                               | Required          |
-| `summary_path` | str or None     | None          | Optional path to save summary statistics CSV                                | Optional          |
-| `text_column`  | int or str      | 0             | Column index (int) or name (str) containing the text to analyze             | Optional          |
-  
-
-Batch processes comments from a CSV file. For single-column files, text_column isn't needed. Otherwise specify column name/index (0-based, negative indices supported). Output contains:
-
-1- Original text
-
-2- Recommendation status
-Optional summary_path generates statistics:
-
-- Total count
-
-- Recommended count
-
-- Not recommended count
-
-- No idea count
-
-- Model accuracy (not implemented in current version)
-
-Returns a DataFrame and saves results.
-
----
-
-### Emotion Analysis Functions
-
-```loadLex(csv_file, word_col=0, emotion_col=1, weight_col=2)```
-
-| Parameter      | Data Type       | Default Value | Description                                                                 | Optional/Required |
-|----------------|-----------------|---------------|-----------------------------------------------------------------------------|-------------------|
-| `csv_file`     | str             | -             | Path to CSV lexicon file                                                    | Required          |
-| `word_col`     | int or str      | 0             | Column index (int) or name (str) containing words                           | Optional          |
-| `emotion_col`  | int or str      | 1             | Column index (int) or name (str) containing emotion labels                  | Optional          |
-| `weight_col`   | int or str      | 2             | Column index (int) or name (str) containing weight values                   | Optional          |
-
-Loads a CSV with three columns:
-
-1- Keywords
-
-2- Emotion (happiness, sadness, anger, fear, disgust, calmness)
-
-3- Emotion weight (defaults to 1 if unspecified, affecting accuracy)
-
-Column indices are optional.
-
----
-
-```train(train_csv, text_col='text', emotion_col='sentiment', weight_col='weight')```
-
-| Parameter      | Data Type       | Default Value | Description                                                                 | Optional/Required |
-|----------------|-----------------|---------------|-----------------------------------------------------------------------------|-------------------|
-| `train_csv`    | str             | -             | Path to training CSV file                                                   | Required          |
-| `text_col`     | str or int      | 'text'        | Column name/index containing text data                                      | Optional          |
-| `emotion_col`  | str or int      | 'emotion'     | Column name/index containing emotion labels                                 | Optional          |
-| `weight_col`   | str or int      | 'weight'      | Column name/index containing weight values                                  | Optional          |
-
-Trains the emotion model using a CSV with specified column names (optional).
-
----
-
-```saveModel(model_name='weighted_sentiment_model')```
-
-| Parameter     | Type  | Default Value               | Description                                                                 | Optional/Required |
-|--------------|-------|-----------------------------|-----------------------------------------------------------------------------|-------------------|
-| `model_name` | str   | 'weighted_sentiment_model'  | Base filename for saving model (without extension)                          | Optional          |
-
-
-```loadModel(model_name='weighted_sentiment_model')```
-
-| Parameter     | Type  | Default Value               | Description                                                                 | Optional/Required |
-|--------------|-------|-----------------------------|-----------------------------------------------------------------------------|-------------------|
-| `model_name` | str   | 'weighted_sentiment_model'  | Base filename of model to load (without extension)                         | Optional          |
-
-
-Model persistence functions (saved in model directory).
-
----
-
-```analyzeText(text)```
-
-| Parameter | Type | Description                          | Optional/Required |
-|-----------|------|--------------------------------------|-------------------|
-| `text`    | str  | Persian text to analyze              | Required          |
-
-Analyzes a single text, returning percentage scores for each emotion.
-
----
-
-```analyzeCSV(input_csv, output_csv, text_col='text', output_col='sentiment_analysis')```
-
-| Parameter           | Type          | Default Value          | Description                                                                 | Optional/Required |
-|---------------------|---------------|------------------------|-----------------------------------------------------------------------------|-------------------|
-| `input_csv`         | str           | -                      | Path to input CSV file containing text to analyze                           | Required          |
-| `output_csv`        | str           | -                      | Path to save analyzed results                                               | Required          |
-| `text_col`          | str/int       | 'text'                 | Column name/index containing text to analyze                                | Optional          |
-| `output_col`        | str           | 'sentiment_analysis'   | Column name for output results                                              | Optional          |
-
-Batch processes texts from CSV. Returns True on success. Requires:
-
-- input_csv path
-
-- output_csv path
-Optional column names.
-
----
+PerSent is a lightweight Python library for **sentiment and emotion analysis of Persian (Farsi) text**.
+
+- **`CommentAnalyzer`** classifies product/service reviews as `recommended`, `not_recommended` or `no_idea`
+  (Word2Vec sentence embeddings + logistic regression).
+- **`SentimentAnalyzer`** scores seven emotions with a weighted lexicon:
+  شادی (happiness), غم (sadness), ترس (fear), عصبانیت (anger), تنفر (disgust), شگفتی (surprise), آرامش (calmness).
+- Single texts or whole CSV files, pre-trained models included, train your own models from CSV.
 
 ## Installation
-Install via pip:
 
 ```bash
 pip install PerSent
 ```
 
-For specific versions:
+Requires Python 3.10–3.13. Pre-trained models are bundled with the package, so no download is needed at runtime.
 
-```bash
-pip install PerSent==<VERSION_NUMBER>
-```
+## Quick start
 
-## Usage
-- Comment Analysis
+### Review / comment polarity
 
-Basic single-text analysis:
-
-```bash
+```python
 from PerSent import CommentAnalyzer
 
 analyzer = CommentAnalyzer()
+analyzer.loadModel()                         # bundled pre-trained model
 
-'''
-Training (if you have data):
-Requires CSV with comments and recommendation status columns
-Status must be: recommended/not_recommended/no_idea
-'''
-analyzer.train("train.csv")
-
-# Load pre-trained model
-analyzer.loadModel()
-
-# Predict
-text = "کیفیت عالی داشت" # "Excellent quality"
-result = analyzer.analyzeText(text)
-print(f"Sentiment: {result}")  # Output: Sentiment: recommended
+analyzer.analyzeText("کیفیت عالی داشت")       # 'recommended'
+analyzer.analyzeText("افتضاح بود")            # 'not_recommended'
+analyzer.analyzeTexts(["خوب بود", "بد بود"])   # list of labels
 ```
 
-The included pre-trained model has ~70% accuracy. For better results, you can train with larger datasets. I've prepared a split dataset (due to size):
+Batch-process a CSV file (adds a `sentiment` column):
 
-[Download Here](https://github.com/RezaGooner/Sentiment-Survey-Analyzer/tree/main/Dataset/big_train)
-
----
-
-Batch CSV processing:
-
-```bash
-from PerSent import CommentAnalyzer
-analyzer = CommentAnalyzer()
-analyzer.loadModel()
-
-# Basic usage (single-column CSV)
-analyzer.analyzeCSV(
-    input_csv="comments.csv",
-    output_path="results.csv"
-)
-
-# Alternative usage patterns:
-# 1. Using column index (0-based)
-analyzer.analyzeCSV("comments.csv", "results.csv", None, 0)
-
-# 2. Negative indices (count from end)
-analyzer.analyzeCSV("comments.csv", "results.csv", None, -1)
-
-# 3. Column name
-analyzer.analyzeCSV("comments.csv", "results.csv", None, "نظرات") # "Comments" column
-
-# 4. With summary (single-column)
-analyzer.analyzeCSV("comments.csv", "results.csv", "summary.csv")
-
-# 5. With summary and column specification
-analyzer.analyzeCSV("comments.csv", "results.csv", "summary.csv", 2)
+```python
+analyzer.analyzeCSV("comments.csv", "results.csv")                 # first column
+analyzer.analyzeCSV("comments.csv", "results.csv", None, -1)       # last column
+analyzer.analyzeCSV("comments.csv", "results.csv", None, "نظرات")  # column by name
+analyzer.analyzeCSV("comments.csv", "results.csv", "summary.csv")  # + summary report
 ```
 
-- Emotion Analysis
+### Emotions
 
-Single text analysis with pre-trained model:
-
-```bash
+```python
 from PerSent import SentimentAnalyzer
 
 analyzer = SentimentAnalyzer()
 analyzer.loadModel()
 
-sample_text = "امتحانم رو خراب کردم. احساس می‌کنم یک شکست خورده‌ی تمام عیارم."
-# "I failed my exam. I feel like a complete failure."
-
-result = analyzer.analyzeText(sample_text)
+result = analyzer.analyzeText("امتحانم رو خراب کردم. احساس می‌کنم یک شکست خورده‌ی تمام عیارم.")
 for emotion, score in sorted(result.items(), key=lambda x: x[1], reverse=True):
     print(f"{emotion}: {score:.2f}%")
 ```
 
-output :
+```text
+غم: 36.00%
+عصبانیت: 36.00%
+ترس: 28.00%
+شادی: 0.00%
+...
+```
+
+```python
+analyzer.analyzeCSV("input.csv", "output.csv")   # text column 'text' -> 'sentiment_analysis'
+```
+
+## Training and saving your own models
+
+Pass a `model_dir` to keep your own models. Without it, `loadModel()` always loads the bundled
+pre-trained model and `train()` keeps the result in memory only.
+
+```python
+from PerSent import CommentAnalyzer, SentimentAnalyzer
+
+comments = CommentAnalyzer(model_dir="my_models")
+accuracy = comments.train("train.csv", random_state=42)   # saved to my_models/comment_model.npz
+comments.loadModel()                                        # later: loads from my_models/
+
+emotions = SentimentAnalyzer(model_dir="my_models")
+emotions.train("dataset/emotion_dataset.csv")              # saved to my_models/weighted_sentiment_model.json
+emotions.saveModel("custom")                                # my_models/custom.json
+emotions.loadModel("custom")
+```
+
+## API reference
+
+### `CommentAnalyzer(model_dir=None)`
+
+| Method | Description |
+|---|---|
+| `train(train_csv, test_size=0.2, vector_size=100, window=5, random_state=None, text_column="body", label_column="recommendation_status", workers=4)` | Train from a CSV. Labels must be `recommended`, `not_recommended` or `no_idea`; empty labels count as `no_idea`. Returns held-out accuracy. Saves to `model_dir` if set. |
+| `analyzeText(text)` | Label for one text. Texts without letters (empty, digits only, …) return `no_idea`. |
+| `analyzeTexts(texts, show_progress=False)` | Labels for many texts. |
+| `analyzeCSV(input_csv, output_path, summary_path=None, text_column=0)` | Analyze a CSV column (name or 0-based / negative index). Returns a DataFrame, or `None` on error. |
+| `saveModel(model_dir=None)` / `loadModel(model_dir=None)` | Save / load `comment_model.npz`. `loadModel` falls back to the bundled model. |
+
+### `SentimentAnalyzer(model_dir=None)`
+
+| Method | Description |
+|---|---|
+| `train(train_csv, text_col="text", emotion_col=None, weight_col="weight", reset=False)` | Learn weighted emotion words from a CSV. `emotion_col` defaults to `sentiment` (or `emotion`). Merges into the current model unless `reset=True`. Returns `{"status", "message"}`. |
+| `loadLex(csv_file, word_col=0, emotion_col=1, weight_col=2)` | Add a word/emotion/weight lexicon. Columns by index, or by name for CSVs with a header. Invalid weights default to 1.0. |
+| `analyzeText(text)` | `{emotion: percentage}` for the seven emotions (all 0.0 if no lexicon word is found). |
+| `analyzeCSV(input_csv, output_csv, text_col="text", output_col="sentiment_analysis")` | Analyze a CSV. Returns `True` / `False`. |
+| `saveModel(model_name="weighted_sentiment_model", model_dir=None)` / `loadModel(...)` | Save / load `<model_name>.json`. |
+
+Errors derive from `PerSent.PerSentError` (`ModelNotLoadedError`, `ModelFileError`, `DataValidationError`).
+Progress and status messages use the standard `logging` module (logger name `"PerSent"`).
+
+## Model quality and limitations
+
+- The bundled comment model reaches about **65 % accuracy** (macro-F1 ≈ 0.64) on a 10 000-review sample of
+  [`dataset/train.csv`](dataset/train.csv) (three balanced classes, so chance level is 33 %). Better models are planned.
+- The emotion analyzer is lexicon-based and does **not handle negation** yet ("خوشحال نیستم" is scored as happiness).
+- hazm's stop-word list contains common opinion words such as "خوب" and "عالی", which are removed before
+  classification.
+
+A larger training set is available [here](https://github.com/RezaGooner/Sentiment-Survey-Analyzer/tree/main/Dataset/big_train).
+
+## Upgrading from 1.3.x
+
+- Models are stored in safe, pickle-free formats (`.npz` / `.json`). Models you saved with 1.3.x can still be loaded
+  with `CommentAnalyzer(model_dir=...)` / `SentimentAnalyzer(model_dir=...)` (a `DeprecationWarning` is shown);
+  call `saveModel()` once to convert them. `scripts/convert_legacy_models.py` converts a folder in one go.
+- PerSent no longer creates or reads a `PerSent/model` folder in the current working directory. Pass `model_dir`
+  explicitly to save and load your own models.
+
+See [CHANGELOG.md](CHANGELOG.md) for all changes.
+
+## Development
 
 ```bash
-غم: 36.00%                     #Sadness
-عصبانیت: 36.00%                 #anger
-ترس: 28.00%                    #fear
-شادی: 0.00%                     #happiness
-تنفر: 0.00%                      #disgust
-شگفتی: 0.00%                    #surprise
-آرامش: 0.00%                    #calmness
+git clone https://github.com/RezaGooner/PerSent.git
+cd PerSent
+pip install -e ".[dev]"
+pytest
+ruff check . && ruff format --check .
 ```
 
-To train your own model:
+## Contributing
 
-``` bash
-analyzer.train('emotion_dataset.csv')
-```
+Bug reports, ideas and pull requests are welcome — see [CONTRIBUTING](.github/CONTRIBUTING.md).
 
-Required CSV columns:
+- [Open an issue](https://github.com/RezaGooner/PerSent/issues/new/choose)
+- [Fork and send a pull request](https://github.com/RezaGooner/PerSent/fork)
+- Email: `RezaAsadiProgrammer@gmail.com` · Telegram: `@RezaGooner`
 
-1- Keywords
+The project grew out of [Sentiment-Survey-Analyzer](https://github.com/RezaGooner/Sentiment-Survey-Analyzer).
 
-2- Emotion (happiness, sadness, anger, disgust, fear, calmness)
+## License
 
-3- Emotion weight
-
-Model persistence:
-
-```bash
-analyzer.saveModel("custom_model_name")
-analyzer.loadModel("custom_model_name")
-```
-
-Batch CSV processing:
-
-```bash
-analyzer.analyzeCSV("input.csv", "output.csv")
-```
-
-## Contribution
-As mentioned, this library needs community collaboration. Please share suggestions, bugs, or feedback via:
-
-- [Fork Repository & Pull Request](https://github.com/RezaGooner/PerSent/fork)
-
-- [Create Issue](https://github.com/RezaGooner/PerSent/issues/new)
-
-- Email: ```RezaAsadiProgrammer@gmail.com```
-
-- Telegram: ```@RezaGooner```
+[MIT](LICENSE)

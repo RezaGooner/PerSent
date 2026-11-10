@@ -1,2 +1,0 @@
-recursive-include PerSent/models *.joblib
-recursive-include PerSent/models *.model

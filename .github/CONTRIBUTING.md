@@ -25,9 +25,10 @@ Got an idea?
 ### 3. Code Contributions
 
 #### Fork & Clone
+Fork the repository on GitHub, then:
 ```bash
-git fork https://github.com/rezagooner/persent.git
-cd persent
+git clone https://github.com/<your-username>/PerSent.git
+cd PerSent
 ```
 
 #### Create a Branch
@@ -37,14 +38,15 @@ git checkout -b feature/my-feature
 
 #### Install Development Dependencies
 ```bash
-pip install -r requirements-dev.txt
+pip install -e ".[dev]"
 ```
 
 #### Make Changes & Test
-- Follow [PEP 8](https://peps.python.org/pep-0008/) style.
+- Code style is enforced with [ruff](https://docs.astral.sh/ruff/) (PEP 8, line length 120).
 - Write unit tests for new features (`tests/` folder).
-- Run tests before committing:
+- Run the checks before committing (CI runs the same commands):
   ```bash
+  ruff check . && ruff format --check .
   pytest
   ```
 
@@ -65,7 +67,7 @@ By participating in this project, you agree to abide by its terms.
 ## Development Tips
 - Keep PRs focused and minimal.
 - Add docstrings to functions and classes.
-- Update `README.md` if your changes affect usage.
+- Update `README.md` / `README.fa.md` if your changes affect usage, and add an entry to `CHANGELOG.md`.
 
 Thank you for making **PerSent** better for the Persian NLP community 💛
 
