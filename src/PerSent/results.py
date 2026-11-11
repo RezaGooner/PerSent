@@ -57,19 +57,30 @@ class EmotionResult:
     Attributes:
         text: The input text.
         scores: Percentage (0-100) of each emotion, keyed by Persian name.
-        matched_words: Lexicon words found in the text (explains the scores).
+        matched_words: Words behind the scores (lexicon matches, or the words that
+            pushed the classifier most towards the dominant emotion).
+        neutral: Classifier backend: probability (0-100) that the text expresses none
+            of the seven emotions. Always 0 for the lexicon backend.
     """
 
     text: str
     scores: dict[str, float]
     matched_words: tuple[str, ...] = ()
+    neutral: float = 0.0
 
     @property
     def dominant(self) -> str | None:
-        """Emotion with the highest score, or ``None`` if no emotion word was found."""
-        if not self.scores or max(self.scores.values()) <= 0:
+        """Emotion with the highest score, or ``None`` if there is none.
+
+        ``None`` when no emotion word was found (lexicon) or when "no emotion" is
+        more likely than every emotion (classifier).
+        """
+        if not self.scores:
             return None
-        return max(self.scores, key=self.scores.__getitem__)
+        best = max(self.scores, key=self.scores.__getitem__)
+        if self.scores[best] <= 0 or self.neutral >= self.scores[best]:
+            return None
+        return best
 
     @property
     def dominant_en(self) -> str | None:
@@ -92,6 +103,7 @@ class EmotionResult:
             "scores": self.scores_en() if en else dict(self.scores),
             "dominant": self.dominant_en if en else self.dominant,
             "matched_words": list(self.matched_words),
+            "neutral": self.neutral,
         }
 
 

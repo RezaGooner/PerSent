@@ -66,10 +66,70 @@ def word_tokenize(text: str) -> list[str]:
     return hazm_tools()["tokenizer"].tokenize(text)
 
 
-def _filter_and_stem(tokens: list[str]) -> list[str]:
-    tools = hazm_tools()
-    stemmer, stopwords = tools["stemmer"], tools["stopwords"]
-    return [stemmer.stem(tok) for tok in tokens if tok not in stopwords and len(tok) > 1]
+# hazm's stop-word list contains words that carry opinion, intensity or negation. The
+# newer pipelines keep them; the bundled 1.x models were trained without them, so the
+# legacy pipelines still use hazm's full list.
+OPINION_WORDS: frozenset[str] = frozenset(
+    {
+        "خوب", "خوبی", "بهتر", "بهترین", "عالی", "مناسب", "کافی", "کامل", "کاملا", "متاسفانه", "خطر",
+        "جدی", "مهم", "بزرگ", "کوچک", "جدید", "خیلی", "بسیار", "زیاد", "زیادی", "کم", "کمی", "بیش",
+        "بیشتر", "نه", "نیست", "نیستند", "نبود", "ندارد", "ندارند", "نباید", "نمی‌شود", "هیچ", "بدون",
+        "عدم", "غیر",
+    }
+)  # fmt: skip
+
+# Negation markers (after the emotion-normalization, where half-spaces became spaces,
+# so "نمی‌ترسم" is tokenized as "نمی" + "ترسم").
+NEGATION_BEFORE: frozenset[str] = frozenset({"نه", "نمی", "نمیخوام", "بدون", "عدم", "هیچ", "هرگز", "اصلا"})
+NEGATION_AFTER: frozenset[str] = frozenset(
+    {
+        "نیست", "نیستم", "نیستی", "نیستیم", "نیستید", "نیستند", "نیس", "نبود", "نبودم", "نبودی", "نبودیم",
+        "نبودید", "نبودند", "نشد", "نشدم", "نشدیم", "نشدند", "نمیشه", "نمیشم", "نمی", "ندارم", "ندارد",
+        "نداره", "نداریم", "ندارند", "نکرد", "نکردم", "نکردیم",
+    }
+)  # fmt: skip
+
+
+def stopwords(kind: str = "legacy") -> frozenset[str]:
+    """``"legacy"``: hazm's full list; ``"opinion"``: hazm's list without :data:`OPINION_WORDS`."""
+    sw = hazm_tools()["stopwords"]
+    return sw if kind == "legacy" else _opinion_stopwords(sw)
+
+
+@lru_cache(maxsize=1)
+def _opinion_stopwords(sw: frozenset[str]) -> frozenset[str]:
+    return frozenset(sw - OPINION_WORDS)
+
+
+def _filter_and_stem(tokens: list[str], kind: str = "legacy") -> list[str]:
+    stemmer, sw = hazm_tools()["stemmer"], stopwords(kind)
+    return [stemmer.stem(tok) for tok in tokens if tok not in sw and len(tok) > 1]
+
+
+def negated_mask(tokens: list[str], before: int = 2, after: int = 2) -> list[bool]:
+    """``True`` for tokens that are negated by a nearby negation marker.
+
+    A token counts as negated when one of the next ``after`` tokens is a copula/verb
+    negation ("خوشحال نیستم") or one of the previous ``before`` tokens is a negating
+    word ("نه خوشحالم", "اصلا نمی ترسم"). Negation markers themselves are not negated.
+    """
+    n = len(tokens)
+    mask = [False] * n
+    for i, tok in enumerate(tokens):
+        if tok in NEGATION_BEFORE or tok in NEGATION_AFTER:
+            continue
+        nxt = tokens[i + 1 : i + 1 + after]
+        prv = tokens[max(0, i - before) : i]
+        if any(t in NEGATION_AFTER for t in nxt) or any(t in NEGATION_BEFORE for t in prv):
+            mask[i] = True
+    return mask
+
+
+# -------------------------------------------------------------------------------- tf-idf
+def tfidf_text(text: object) -> str:
+    """Input of the TF-IDF models: hazm-normalized text (no stemming, no stop-word removal)."""
+    text = hazm_tools()["normalizer"].normalize(to_text(text))
+    return WHITESPACE_RE.sub(" ", text).strip()
 
 
 # ----------------------------------------------------------------------------- polarity

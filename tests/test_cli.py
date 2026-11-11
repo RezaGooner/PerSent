@@ -76,8 +76,13 @@ def test_errors_return_1(capsys, tmp_path):
 
 def test_train_and_evaluate(capsys, comments_csv, tmp_path):
     model = tmp_path / "m"
-    code, _, err = run(capsys, "train", "polarity", str(comments_csv), "-o", str(model), "--vector-size", "8", "-q")
-    assert code == 0 and "accuracy" in err and (model / "comment_model.npz").exists()
+    code, _, err = run(capsys, "train", "polarity", str(comments_csv), "-o", str(model), "-q")
+    assert code == 0 and "accuracy" in err and (model / "polarity_model.npz").exists()
+    w2v = tmp_path / "w2v"
+    code, _, _ = run(
+        capsys, "train", "polarity", str(comments_csv), "-o", str(w2v), "--method", "word2vec", "--vector-size", "8"
+    )
+    assert code == 0 and (w2v / "comment_model.npz").exists()
     code, out, _ = run(capsys, "evaluate", str(comments_csv), "-m", str(model), "--json")
     assert code == 0 and json.loads(out)["n"] == 30
     _, out, _ = run(capsys, "evaluate", str(comments_csv), "-m", str(model))
@@ -91,3 +96,20 @@ def test_train_emotion(capsys, emotion_csv, tmp_path):
     assert code == 0 and "3 rows" in err
     _, out, _ = run(capsys, "emotion", "از تاریکی می‌ترسم", "-m", str(tmp_path / "e.json"))
     assert out.startswith("ترس")
+
+
+def test_named_models_and_emotion_classifier(capsys, tmp_path):
+    _, out, _ = run(capsys, "polarity", "کیفیت عالی داشت", "-m", "word2vec-v1")
+    assert out.startswith("recommended")
+    data = pd.DataFrame(
+        {"text": ["خیلی خوشحال و شادم", "از تاریکی می‌ترسم", "خیلی غمگینم", "ساعت پنج میام"] * 6,
+         "sentiment": ["شادی", "ترس", "غم", "other"] * 6}
+    )  # fmt: skip
+    csv = tmp_path / "emo.csv"
+    data.to_csv(csv, index=False)
+    code, _, err = run(capsys, "train", "emotion", str(csv), "-o", str(tmp_path / "e.npz"), "--method", "classifier")
+    assert code == 0 and "accuracy" in err
+    code, out, _ = run(capsys, "evaluate", str(csv), "--task", "emotion", "-m", str(tmp_path / "e.npz"))
+    assert code == 0 and "macro-F1" in out
+    _, out, _ = run(capsys, "emotion", "خیلی خوشحال و شادم", "-m", str(tmp_path / "e.npz"))
+    assert out.startswith("شادی")

@@ -27,7 +27,7 @@ class CommentAnalyzer:
     1.x                             1.5+
     ==============================  ===================================================
     ``CommentAnalyzer()``           ``PolarityClassifier()``
-    ``loadModel()``                 ``PolarityClassifier.pretrained()`` / ``.load(dir)``
+    ``loadModel()``                 ``PolarityClassifier.pretrained("word2vec-v1")`` / ``.load(dir)``
     ``saveModel()``                 ``save(dir)``
     ``train(csv)``                  ``fit_csv(csv)`` (returns a report)
     ``analyzeText(t)``              ``predict(t)`` / ``analyze(t)``
@@ -93,6 +93,7 @@ class CommentAnalyzer:
         """Train from a CSV; returns held-out accuracy (``nan`` without a test split)."""
         report = self._clf.fit_csv(
             train_csv,
+            method="word2vec",
             text_column=text_column,
             label_column=label_column,
             test_size=test_size,
@@ -136,7 +137,7 @@ class CommentAnalyzer:
                 self._clf = PolarityClassifier._load_legacy(legacy_clf, legacy_w2v, stacklevel=5)
                 return
             logger.warning("No model found in %s; loading the bundled pre-trained model.", directory)
-        self._clf = PolarityClassifier.pretrained()
+        self._clf = PolarityClassifier.pretrained("word2vec-v1")  # the 1.x model, unchanged
 
     def analyzeCSV(
         self,

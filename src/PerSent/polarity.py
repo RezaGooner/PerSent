@@ -1,4 +1,10 @@
-"""Review polarity: ``recommended`` / ``not_recommended`` / ``no_idea``."""
+"""Review polarity: ``recommended`` / ``not_recommended`` / ``no_idea``.
+
+Two model types:
+
+* ``tfidf`` (default since 1.6): word + character n-gram TF-IDF and logistic regression.
+* ``word2vec`` (PerSent <= 1.5): mean Word2Vec sentence vectors and logistic regression.
+"""
 
 from __future__ import annotations
 
@@ -12,54 +18,87 @@ from tqdm import tqdm
 
 from ._models import LinearClassifier, WordEmbeddings, load_comment_model, save_comment_model
 from ._text import clean_polarity_text, polarity_tokens, to_text
+from ._tfidf import TfidfLinearModel, load_tfidf_model, npz_model_type
 from ._utils import as_frame, bundled_model_path, logger, resolve_column, warn_legacy_pickle
 from .exceptions import DataValidationError, ModelFileError, ModelNotLoadedError
 from .results import EvaluationReport, PolarityResult, TrainingReport
 
 LABELS: tuple[str, ...] = ("not_recommended", "recommended", "no_idea")
 EMPTY_TEXT_LABEL = "no_idea"
-MODEL_FILENAME = "comment_model.npz"
+MODEL_FILENAME = "comment_model.npz"  # Word2Vec model file (PerSent 1.4/1.5 name)
+TFIDF_FILENAME = "polarity_model.npz"
+METHODS = ("tfidf", "word2vec")
+#: Bundled models: name -> file inside PerSent/models.
+PRETRAINED: dict[str, str] = {"tfidf-v2": "polarity_tfidf_v2.npz", "word2vec-v1": MODEL_FILENAME}
+DEFAULT_PRETRAINED = "tfidf-v2"
 _LEGACY_LABELS = {0: "not_recommended", 1: "recommended", 2: "no_idea"}
-
-
-def _resolve_model_file(path: str | os.PathLike) -> Path:
-    path = Path(path)
-    return path if path.suffix == ".npz" else path / MODEL_FILENAME
+_W2V_OPTIONS = {"vector_size", "window", "min_count", "epochs", "workers"}
+_TFIDF_OPTIONS = {"word_ngrams", "char_ngrams", "max_word_features", "max_char_features", "min_df", "class_weight"}
 
 
 class PolarityClassifier:
     """Classify Persian reviews as ``recommended``, ``not_recommended`` or ``no_idea``.
 
-    Word2Vec sentence embeddings (mean of word vectors) + multinomial logistic regression.
-
     Example:
-        >>> clf = PolarityClassifier.pretrained()
+        >>> clf = PolarityClassifier.pretrained()          # TF-IDF model, ~75 % accuracy
         >>> clf.predict("کیفیت عالی داشت")
         'recommended'
         >>> clf.analyze("افتضاح بود").label
         'not_recommended'
+        >>> PolarityClassifier.pretrained("word2vec-v1")   # the PerSent <= 1.5 model
     """
 
-    def __init__(self, embeddings: WordEmbeddings | None = None, classifier: LinearClassifier | None = None) -> None:
+    def __init__(
+        self,
+        embeddings: WordEmbeddings | None = None,
+        classifier: LinearClassifier | None = None,
+        *,
+        tfidf: TfidfLinearModel | None = None,
+    ) -> None:
         self.embeddings = embeddings
         self.classifier = classifier
+        self.tfidf = tfidf
+        self.name: str | None = None
 
     def __repr__(self) -> str:
-        if not self.is_fitted:
-            return "PolarityClassifier(not fitted)"
-        return (
-            f"PolarityClassifier(vocab={len(self.embeddings)}, vector_size={self.embeddings.vector_size}, "
-            f"labels={self.labels})"
-        )
+        if self.method == "tfidf":
+            return f"PolarityClassifier(method='tfidf', features={self.tfidf.n_features}, labels={self.labels})"
+        if self.method == "word2vec":
+            return (
+                f"PolarityClassifier(method='word2vec', vocab={len(self.embeddings)}, "
+                f"vector_size={self.embeddings.vector_size}, labels={self.labels})"
+            )
+        return "PolarityClassifier(not fitted)"
 
     # ---------------------------------------------------------------- loading
+    @staticmethod
+    def available_models() -> tuple[str, ...]:
+        """Names accepted by :meth:`pretrained`."""
+        return tuple(PRETRAINED)
+
     @classmethod
-    def pretrained(cls) -> PolarityClassifier:
-        """The model bundled with PerSent (~65 % accuracy on Digikala-style reviews)."""
-        path = bundled_model_path(MODEL_FILENAME)
+    def pretrained(cls, name: str | None = None) -> PolarityClassifier:
+        """A model bundled with PerSent.
+
+        ``"tfidf-v2"`` (default): TF-IDF + logistic regression trained on 300 000
+        Digikala reviews (see ``docs/MODEL_CARD.md``). ``"word2vec-v1"``: the model of
+        PerSent <= 1.5, kept for reproducibility.
+        """
+        name = name or DEFAULT_PRETRAINED
+        if name not in PRETRAINED:
+            raise ModelFileError(f"Unknown pretrained polarity model {name!r}; available: {list(PRETRAINED)}")
+        path = bundled_model_path(PRETRAINED[name])
         if not path.exists():
             raise ModelFileError(f"Bundled model {path} is missing; reinstall PerSent")
-        return cls(*load_comment_model(path))
+        model = cls._from_file(path)
+        model.name = name
+        return model
+
+    @classmethod
+    def _from_file(cls, file: Path) -> PolarityClassifier:
+        if npz_model_type(file) == "tfidf_lr":
+            return cls(tfidf=load_tfidf_model(file))
+        return cls(*load_comment_model(file))
 
     @classmethod
     def load(cls, path: str | os.PathLike) -> PolarityClassifier:
@@ -68,11 +107,15 @@ class PolarityClassifier:
         Directories with PerSent <= 1.3 pickle files (``classifier.joblib`` +
         ``word2vec.model``) are also accepted, with a ``DeprecationWarning``.
         """
-        file = _resolve_model_file(path)
-        if file.exists():
-            return cls(*load_comment_model(file))
-        directory = Path(path)
-        legacy_clf, legacy_w2v = directory / "classifier.joblib", directory / "word2vec.model"
+        path = Path(path)
+        if path.suffix == ".npz":
+            if not path.exists():
+                raise ModelFileError(f"No PerSent polarity model found at {path}")
+            return cls._from_file(path)
+        for name in (TFIDF_FILENAME, MODEL_FILENAME):
+            if (path / name).exists():
+                return cls._from_file(path / name)
+        legacy_clf, legacy_w2v = path / "classifier.joblib", path / "word2vec.model"
         if legacy_clf.exists() and legacy_w2v.exists():
             return cls._load_legacy(legacy_clf, legacy_w2v)
         raise ModelFileError(f"No PerSent polarity model found at {path}")
@@ -86,27 +129,44 @@ class PolarityClassifier:
         clf = joblib.load(clf_path)
         w2v = Word2Vec.load(str(w2v_path))
         labels = [_LEGACY_LABELS.get(int(c), str(c)) if str(c).isdigit() else str(c) for c in clf.classes_]
-        return cls(
-            WordEmbeddings(list(w2v.wv.index_to_key), w2v.wv.vectors), LinearClassifier.from_sklearn(clf, labels)
-        )
+        embeddings = WordEmbeddings(list(w2v.wv.index_to_key), w2v.wv.vectors)
+        return cls(embeddings, LinearClassifier.from_sklearn(clf, labels))
 
     def save(self, path: str | os.PathLike) -> Path:
-        """Save to a directory (as ``comment_model.npz``) or to a ``.npz`` file path."""
+        """Save to a ``.npz`` file, or into a directory.
+
+        In a directory the file is ``polarity_model.npz`` (TF-IDF) or
+        ``comment_model.npz`` (Word2Vec).
+        """
         self._require_fitted()
-        file = _resolve_model_file(path)
-        save_comment_model(file, self.embeddings, self.classifier)
+        path = Path(path)
+        if self.method == "tfidf":
+            file = path if path.suffix == ".npz" else path / TFIDF_FILENAME
+            self.tfidf.save(file)
+        else:
+            file = path if path.suffix == ".npz" else path / MODEL_FILENAME
+            save_comment_model(file, self.embeddings, self.classifier)
         logger.info("Model saved to %s", file)
         return file
 
     # ---------------------------------------------------------------- state
     @property
+    def method(self) -> str | None:
+        """``"tfidf"``, ``"word2vec"`` or ``None`` if not fitted."""
+        if self.tfidf is not None:
+            return "tfidf"
+        if self.embeddings is not None and self.classifier is not None:
+            return "word2vec"
+        return None
+
+    @property
     def is_fitted(self) -> bool:
-        return self.embeddings is not None and self.classifier is not None
+        return self.method is not None
 
     @property
     def labels(self) -> tuple[str, ...]:
         self._require_fitted()
-        return tuple(self.classifier.labels)
+        return tuple(self.tfidf.labels if self.method == "tfidf" else self.classifier.labels)
 
     def _require_fitted(self) -> None:
         if not self.is_fitted:
@@ -115,33 +175,33 @@ class PolarityClassifier:
             )
 
     # ------------------------------------------------------------- inference
-    def _vectors(self, texts: Sequence[object]) -> tuple[np.ndarray, np.ndarray]:
-        """Sentence vectors and a mask of texts that contain letters."""
+    def _proba(self, texts: Sequence[object]) -> tuple[np.ndarray, np.ndarray]:
+        """Label probabilities and a mask of texts that contain letters."""
         cleaned = [clean_polarity_text(t) for t in texts]
         has_text = np.array([bool(c) for c in cleaned], dtype=bool)
-        size = self.embeddings.vector_size
-        X = np.zeros((len(cleaned), size), dtype=np.float32)
-        for i, c in enumerate(cleaned):
-            if c:
-                X[i] = self.embeddings.sentence_vector(polarity_tokens(c, cleaned=True))
-        return X, has_text
+        n_labels = len(self.labels)
+        proba = np.zeros((len(cleaned), n_labels))
+        idx = np.flatnonzero(has_text)
+        if len(idx):
+            if self.method == "tfidf":
+                proba[idx] = self.tfidf.predict_proba([to_text(texts[i]) for i in idx])
+            else:
+                size = self.embeddings.vector_size
+                X = np.zeros((len(idx), size), dtype=np.float32)
+                for row, i in enumerate(idx):
+                    X[row] = self.embeddings.sentence_vector(polarity_tokens(cleaned[i], cleaned=True))
+                proba[idx] = self.classifier.predict_proba(X)
+        return proba, has_text
 
     def _empty_scores(self) -> dict[str, float]:
-        return {label: float(label == EMPTY_TEXT_LABEL) for label in self.classifier.labels}
+        return {label: float(label == EMPTY_TEXT_LABEL) for label in self.labels}
 
     def predict(self, text: str) -> str:
         """Label for one text. Texts without letters return ``"no_idea"``."""
         return self.predict_many([text])[0]
 
     def predict_many(self, texts: Iterable[object], show_progress: bool = False) -> list[str]:
-        self._require_fitted()
-        texts = list(texts)
-        out: list[str] = []
-        for chunk in self._chunks(texts, show_progress):
-            X, has_text = self._vectors(chunk)
-            preds = self.classifier.predict(X) if len(chunk) else []
-            out.extend(p if ok else EMPTY_TEXT_LABEL for p, ok in zip(preds, has_text, strict=True))
-        return out
+        return [r.label for r in self.analyze_many(texts, show_progress=show_progress)]
 
     def predict_proba(self, text: str) -> dict[str, float]:
         """Probability of each label for one text."""
@@ -154,11 +214,10 @@ class PolarityClassifier:
     def analyze_many(self, texts: Iterable[object], show_progress: bool = False) -> list[PolarityResult]:
         self._require_fitted()
         texts = list(texts)
-        labels = self.classifier.labels
+        labels = self.labels
         results: list[PolarityResult] = []
         for chunk in self._chunks(texts, show_progress):
-            X, has_text = self._vectors(chunk)
-            proba = self.classifier.predict_proba(X) if len(chunk) else np.zeros((0, len(labels)))
+            proba, has_text = self._proba(chunk)
             for text, p, ok in zip(chunk, proba, has_text, strict=True):
                 if ok:
                     scores = {label: float(v) for label, v in zip(labels, p, strict=True)}
@@ -168,11 +227,18 @@ class PolarityClassifier:
                 results.append(PolarityResult(to_text(text), label, scores))
         return results
 
+    def explain(self, text: str, k: int = 5) -> list[str]:
+        """Words/phrases of ``text`` that pushed the TF-IDF model most towards its prediction."""
+        self._require_fitted()
+        if self.method != "tfidf":
+            return []
+        return self.tfidf.top_terms(text, self.predict(text), k)
+
     @staticmethod
-    def _chunks(texts: list, show_progress: bool, size: int = 1024):
+    def _chunks(texts: list, show_progress: bool, size: int = 2048):
         bar = tqdm(total=len(texts), desc="Analyzing", disable=not show_progress)
         try:
-            for start in range(0, max(len(texts), 1), size):
+            for start in range(0, len(texts), size):
                 chunk = texts[start : start + size]
                 yield chunk
                 bar.update(len(chunk))
@@ -185,26 +251,36 @@ class PolarityClassifier:
         texts: Sequence[object],
         labels: Sequence[object],
         *,
-        vector_size: int = 100,
-        window: int = 5,
-        min_count: int = 1,
-        epochs: int = 5,
+        method: str = "tfidf",
         test_size: float = 0.2,
         random_state: int | None = None,
-        workers: int = 4,
-        C: float = 1.0,
+        C: float | None = None,
         show_progress: bool = False,
+        **options,
     ) -> TrainingReport:
-        """Train Word2Vec + logistic regression on ``texts`` / ``labels``.
+        """Train a model on ``texts`` / ``labels``.
 
-        Labels must be ``recommended``, ``not_recommended`` or ``no_idea``
-        (missing labels count as ``no_idea``). A stratified ``test_size`` split is
-        held out for the returned :class:`~PerSent.results.TrainingReport`; the
-        model itself is trained on the remaining data.
+        Labels must be ``recommended``, ``not_recommended`` or ``no_idea`` (missing
+        labels count as ``no_idea``). A stratified ``test_size`` split is held out
+        for the returned :class:`~PerSent.results.TrainingReport`; the model is
+        trained on the rest.
+
+        ``method="tfidf"`` (default) options: ``word_ngrams=(1, 2)``,
+        ``char_ngrams=(2, 5)``, ``max_word_features=200_000``,
+        ``max_char_features=100_000``, ``min_df=3``, ``class_weight=None``; ``C=2.0``
+        (the configuration of the bundled ``tfidf-v2`` model).
+
+        ``method="word2vec"`` options: ``vector_size=100``, ``window=5``,
+        ``min_count=1``, ``epochs=5``, ``workers=4``; ``C=1.0``.
         """
-        from gensim.models import Word2Vec
-        from sklearn.linear_model import LogisticRegression
         from sklearn.model_selection import train_test_split
+
+        if method not in METHODS:
+            raise ValueError(f"method must be one of {METHODS}")
+        allowed = _TFIDF_OPTIONS if method == "tfidf" else _W2V_OPTIONS
+        unknown_opts = set(options) - allowed
+        if unknown_opts:
+            raise TypeError(f"Unknown options for method={method!r}: {sorted(unknown_opts)}")
 
         texts = list(texts)
         y = np.array([to_text(v).strip() or EMPTY_TEXT_LABEL for v in labels], dtype=object)
@@ -216,8 +292,57 @@ class PolarityClassifier:
         if len(set(y)) < 2:
             raise DataValidationError("Training data must contain at least two different labels")
 
-        iterator = tqdm(texts, desc="Preprocessing", disable=not show_progress)
-        tokens = [polarity_tokens(t) for t in iterator]
+        idx = np.arange(len(texts))
+        test_idx = np.array([], dtype=int)
+        if test_size and test_size > 0:
+            counts = pd.Series(y).value_counts()
+            stratify = y if counts.min() >= 2 else None
+            idx, test_idx = train_test_split(idx, test_size=test_size, random_state=random_state, stratify=stratify)
+        if len(set(y[idx])) < 2:
+            raise DataValidationError("The training split must contain at least two different labels")
+
+        if method == "tfidf":
+            self._fit_tfidf([texts[i] for i in idx], list(y[idx]), C=2.0 if C is None else C, **options)
+        else:
+            self._fit_word2vec(texts, y, idx, random_state, C=1.0 if C is None else C, show=show_progress, **options)
+        self.name = None
+
+        if not len(test_idx):
+            return TrainingReport(n_train=len(idx), n_test=0, labels=self.labels)
+        ev = self.evaluate([texts[i] for i in test_idx], list(y[test_idx]))
+        return TrainingReport(
+            n_train=len(idx),
+            n_test=len(test_idx),
+            accuracy=ev.accuracy,
+            macro_f1=ev.macro_f1,
+            per_label=ev.per_label,
+            labels=self.labels,
+        )
+
+    def _fit_tfidf(self, texts: list, labels: list, *, C: float, **options) -> None:
+        self.tfidf = TfidfLinearModel.train(texts, labels, C=C, **options).reorder(LABELS)
+        self.embeddings = self.classifier = None
+
+    def _fit_word2vec(
+        self,
+        texts: list,
+        y: np.ndarray,
+        train_idx: np.ndarray,
+        random_state: int | None,
+        *,
+        C: float,
+        show: bool,
+        vector_size: int = 100,
+        window: int = 5,
+        min_count: int = 1,
+        epochs: int = 5,
+        workers: int = 4,
+    ) -> None:
+        from gensim.models import Word2Vec
+        from sklearn.linear_model import LogisticRegression
+
+        # Word2Vec is unsupervised and (as in PerSent <= 1.5) sees every text
+        tokens = [polarity_tokens(t) for t in tqdm(texts, desc="Preprocessing", disable=not show)]
         w2v = Word2Vec(
             sentences=tokens,
             vector_size=vector_size,
@@ -228,36 +353,9 @@ class PolarityClassifier:
             seed=random_state if random_state is not None else 1,
         )
         embeddings = WordEmbeddings(list(w2v.wv.index_to_key), w2v.wv.vectors)
-        X = np.vstack([embeddings.sentence_vector(t) for t in tokens])
-
-        X_test = y_test = None
-        if test_size and test_size > 0:
-            counts = pd.Series(y).value_counts()
-            stratify = y if counts.min() >= 2 else None
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=test_size, random_state=random_state, stratify=stratify
-            )
-        else:
-            X_train, y_train = X, y
-        if len(set(y_train)) < 2:
-            raise DataValidationError("The training split must contain at least two different labels")
-
-        sk_model = LogisticRegression(max_iter=1000, C=C)
-        sk_model.fit(X_train, y_train)
-        self.embeddings = embeddings
-        self.classifier = LinearClassifier.from_sklearn(sk_model)
-
-        if X_test is None or not len(X_test):
-            return TrainingReport(n_train=len(y_train), n_test=0, labels=self.labels)
-        ev = self._evaluate_arrays(X_test, list(y_test))
-        return TrainingReport(
-            n_train=len(y_train),
-            n_test=len(y_test),
-            accuracy=ev.accuracy,
-            macro_f1=ev.macro_f1,
-            per_label=ev.per_label,
-            labels=self.labels,
-        )
+        X = np.vstack([embeddings.sentence_vector(tokens[i]) for i in train_idx])
+        sk_model = LogisticRegression(max_iter=1000, C=C).fit(X, y[train_idx])
+        self.embeddings, self.classifier, self.tfidf = embeddings, LinearClassifier.from_sklearn(sk_model), None
 
     def fit_csv(
         self,
@@ -296,13 +394,10 @@ class PolarityClassifier:
             df[resolve_column(df, text_column)].tolist(), df[resolve_column(df, label_column)].tolist()
         )
 
-    def _evaluate_arrays(self, X: np.ndarray, y_true: list[str]) -> EvaluationReport:
-        return self._report(y_true, self.classifier.predict(X))
-
     def _report(self, y_true: list[str], y_pred: list[str]) -> EvaluationReport:
         from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precision_recall_fscore_support
 
-        labels = list(self.classifier.labels)
+        labels = list(self.labels)
         p, r, f, s = precision_recall_fscore_support(y_true, y_pred, labels=labels, zero_division=0)
         per_label = {
             lab: {"precision": float(p[i]), "recall": float(r[i]), "f1": float(f[i]), "support": int(s[i])}
@@ -341,7 +436,7 @@ class PolarityClassifier:
         results = self.analyze_many(df[column].tolist(), show_progress=show_progress)
         df[output_column] = [r.label for r in results]
         if include_scores:
-            for label in self.classifier.labels:
+            for label in self.labels:
                 df[f"score_{label}"] = [round(r.scores[label], 6) for r in results]
         if output_csv is not None:
             df.to_csv(output_csv, index=False, encoding="utf-8-sig")
@@ -368,4 +463,4 @@ class PolarityClassifier:
         return pd.DataFrame(rows)
 
 
-__all__ = ["LABELS", "PolarityClassifier"]
+__all__ = ["DEFAULT_PRETRAINED", "LABELS", "METHODS", "PRETRAINED", "PolarityClassifier"]

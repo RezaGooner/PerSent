@@ -17,6 +17,9 @@ from .exceptions import DataValidationError, ModelFileError, ModelNotLoadedError
 
 __all__ = ["DEFAULT_MODEL_NAME", "EMOTION_MAP", "SentimentAnalyzer"]
 
+# PerSent <= 1.5 behaviour: no negation handling, no phrase matching, hazm's full stop-word list
+_LEGACY_OPTIONS = {"handle_negation": False, "match_phrases": False, "stopwords": "legacy"}
+
 
 class SentimentAnalyzer:
     """Deprecated: use :class:`PerSent.EmotionAnalyzer`.
@@ -37,7 +40,7 @@ class SentimentAnalyzer:
     def __init__(self, model_dir: str | os.PathLike | None = None) -> None:
         warn_deprecated("SentimentAnalyzer", "PerSent.EmotionAnalyzer")
         self.model_dir = Path(model_dir) if model_dir is not None else None
-        self._emo = EmotionAnalyzer(EmotionLexicon(dict(EMOTION_MAP)))
+        self._emo = EmotionAnalyzer(EmotionLexicon(dict(EMOTION_MAP)), **_LEGACY_OPTIONS)
         self.model_loaded = False
 
     # 1.4 exposed these attributes
@@ -124,11 +127,11 @@ class SentimentAnalyzer:
             path = directory / f"{model_name}.json"
             legacy = directory / f"{model_name}.joblib"
             if path.exists():
-                self._emo = EmotionAnalyzer.load(path)
+                self._emo = EmotionAnalyzer.load(path, **_LEGACY_OPTIONS)
                 self.model_loaded = True
                 return
             if legacy.exists():
-                self._emo = EmotionAnalyzer._load_legacy(legacy, stacklevel=4)
+                self._emo = EmotionAnalyzer._load_legacy(legacy, stacklevel=4, **_LEGACY_OPTIONS)
                 self.model_loaded = True
                 return
         if model_name != DEFAULT_MODEL_NAME:
@@ -136,7 +139,7 @@ class SentimentAnalyzer:
             raise ModelFileError(f"Model '{model_name}' not found in {where}")
         if directory is not None:
             logger.warning("No model found in %s; loading the bundled pre-trained model.", directory)
-        self._emo = EmotionAnalyzer.pretrained()
+        self._emo = EmotionAnalyzer.pretrained(**_LEGACY_OPTIONS)
         self.model_loaded = True
 
     def analyzeText(self, text: str) -> dict[str, float]:

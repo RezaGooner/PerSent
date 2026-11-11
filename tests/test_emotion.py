@@ -66,8 +66,8 @@ def test_add_word_persian_and_english():
     assert emo.analyze("ترسناک").dominant == "ترس"
     with pytest.raises(DataValidationError):
         emo.add_word("x", "boredom")
-    with pytest.warns(UserWarning, match="more than one word"):
-        emo.add_word("ذوق‌زده", "شادی")
+    emo.add_word("ذوق‌زده", "شادی")  # multi-word entries are matched since 1.6
+    assert emo.analyze("خیلی ذوق‌زده شدم").dominant == "شادی"
 
 
 def test_add_lexicon_dataframe():
