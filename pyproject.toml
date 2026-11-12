@@ -59,7 +59,7 @@ path = "src/PerSent/_version.py"
 packages = ["src/PerSent"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/PerSent", "tests", "scripts", "README.md", "README.fa.md", "CHANGELOG.md", "LICENSE"]
+include = ["src/PerSent", "tests", "scripts", "docs", "README.md", "README.fa.md", "CHANGELOG.md", "LICENSE"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

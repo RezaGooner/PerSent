@@ -4,7 +4,46 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [1.5.0] - Unreleased
+## [1.6.0] - Unreleased
+
+### Added
+- **New default polarity model `tfidf-v2`**: TF-IDF of word 1–2-grams and character 2–5-grams + logistic
+  regression, trained on 300 000 cleaned Digikala reviews (MIT-licensed RadeAI dump). On a product-disjoint
+  test split: accuracy 0.755 / macro-F1 0.755, vs 0.653 / 0.649 for the previous model (4.7 MB, pickle-free).
+  See `docs/MODEL_CARD.md`.
+- `PolarityClassifier.pretrained(name)` and `available_models()`: `"tfidf-v2"` (default) and `"word2vec-v1"`
+  (the PerSent ≤ 1.5 model); `PolarityClassifier.fit(method="tfidf" | "word2vec")`; `method` property;
+  `explain(text)` lists the words behind a TF-IDF prediction.
+- Emotion **classifier backend**: `EmotionAnalyzer.fit_classifier()` / `fit_classifier_csv()` train a TF-IDF
+  classifier (≈ 2× the lexicon's accuracy on public emotion data); an `"other"` label (also `"بدون_احساس"`, the column name `analyze_csv` writes) models "no emotion"
+  (reported as `EmotionResult.neutral` and `dominant=None`). Saved as `.npz`; `EmotionAnalyzer.load()` detects
+  the type. `EmotionAnalyzer.evaluate()` / `evaluate_csv()`. No emotion classifier is bundled: classifiers trained
+  on the redistributable public datasets did not beat the lexicon on independent data (see `docs/MODEL_CARD.md`).
+- Emotion lexicon: **negation handling** ("خوشحال نیستم", "اصلا نمی‌ترسم", "نه … نه …") and **multi-word
+  entries** (e.g. "وحشت‌زده", which normalization splits into two words) — `add_word()` accepts phrases.
+- Opinion-aware stop-word list: words such as "خوب", "عالی", "بهتر", "نه", "نیست" are no longer discarded by the
+  emotion lexicon.
+- CLI: `persent train ... --method`, `persent evaluate --task emotion`, bundled model names for `-m`
+  (e.g. `-m word2vec-v1`).
+- `scripts/build_polarity_dataset.py`, `scripts/train_polarity_model.py`, `scripts/build_emotion_dataset.py` and
+  `docs/MODEL_CARD.md` to reproduce and document the models.
+
+### Changed
+- `PolarityClassifier.pretrained()` returns `tfidf-v2`; `PolarityClassifier().fit()` trains TF-IDF by default.
+  Predictions differ from 1.5 — use `pretrained("word2vec-v1")` / `fit(method="word2vec")` for the old behaviour.
+- `EmotionAnalyzer` handles negation and phrases by default. Old behaviour:
+  `EmotionAnalyzer(..., handle_negation=False, match_phrases=False, stopwords="legacy")`.
+- A directory `save()` of a TF-IDF polarity model writes `polarity_model.npz`.
+- Wheel size grows to ~19 MB (both polarity models are bundled).
+
+### Unchanged
+- `CommentAnalyzer` and `SentimentAnalyzer` (deprecated) keep using the 1.x model and pipeline; their outputs
+  are identical to PerSent 1.3.3.
+
+### Fixed
+- Documentation claimed "بد" is a hazm stop-word; it is not.
+
+## [1.5.0] - 2026-11-11
 
 ### Added
 - New API with snake_case methods and result objects:
@@ -72,6 +111,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [1.3.3] - 2025-08-22
 - Last release with the original `setup.py` layout and pickle-based models.
 
-[1.5.0]: https://github.com/RezaGooner/PerSent/compare/v1.4.0...HEAD
+[1.6.0]: https://github.com/RezaGooner/PerSent/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/RezaGooner/PerSent/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/RezaGooner/PerSent/compare/088b919...v1.4.0
 [1.3.3]: https://pypi.org/project/PerSent/1.3.3/

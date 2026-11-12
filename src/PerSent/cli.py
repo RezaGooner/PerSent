@@ -7,6 +7,8 @@ Examples::
     persent csv comments.csv -o results.csv --task polarity --column نظرات --summary summary.csv
     persent train polarity train.csv -o my_model/
     persent evaluate test.csv --model my_model/
+    persent polarity "خوب بود" -m word2vec-v1          # the PerSent <= 1.5 model
+    persent train emotion emotions.csv -o emo.npz --method classifier
 """
 
 from __future__ import annotations
@@ -19,6 +21,8 @@ import sys
 from collections.abc import Sequence
 
 from ._version import __version__
+
+MODEL_HELP = "bundled model name (e.g. tfidf-v2, word2vec-v1, lexicon-v1) or a model directory/file"
 
 
 def _configure_stdio() -> None:
@@ -47,13 +51,17 @@ def _dump(obj) -> str:
 def _polarity_model(path: str | None):
     from .polarity import PolarityClassifier
 
-    return PolarityClassifier.load(path) if path else PolarityClassifier.pretrained()
+    if not path or path in PolarityClassifier.available_models():
+        return PolarityClassifier.pretrained(path)
+    return PolarityClassifier.load(path)
 
 
 def _emotion_model(path: str | None):
     from .emotion import EmotionAnalyzer
 
-    return EmotionAnalyzer.load(path) if path else EmotionAnalyzer.pretrained()
+    if not path or path in EmotionAnalyzer.available_models():
+        return EmotionAnalyzer.pretrained(path)
+    return EmotionAnalyzer.load(path)
 
 
 def cmd_polarity(args: argparse.Namespace) -> int:
@@ -108,40 +116,68 @@ def cmd_train(args: argparse.Namespace) -> int:
     if args.task == "polarity":
         from .polarity import PolarityClassifier
 
+        method = args.method or "tfidf"
+        if method not in ("tfidf", "word2vec"):
+            raise SystemExit("error: --method for polarity must be tfidf or word2vec")
+        options = (
+            {"vector_size": args.vector_size, "window": args.window, "epochs": args.epochs}
+            if method == "word2vec"
+            else {}
+        )
         clf = PolarityClassifier()
         report = clf.fit_csv(
             args.data,
             text_column=args.text_column or "body",
             label_column=args.label_column or "recommendation_status",
-            vector_size=args.vector_size,
-            window=args.window,
-            epochs=args.epochs,
+            method=method,
             test_size=args.test_size,
             random_state=args.seed,
             show_progress=not args.quiet,
+            **options,
         )
         path = clf.save(args.output)
         print(report, file=sys.stderr)
     else:
         from .emotion import EmotionAnalyzer
 
-        emo = EmotionAnalyzer.pretrained() if args.extend else EmotionAnalyzer()
-        used = emo.fit_csv(
-            args.data,
-            text_column=args.text_column or "text",
-            emotion_column=args.label_column,
-            show_progress=not args.quiet,
-        )
+        method = args.method or "lexicon"
+        if method == "classifier":
+            emo = EmotionAnalyzer()
+            report = emo.fit_classifier_csv(
+                args.data,
+                text_column=args.text_column or "text",
+                emotion_column=args.label_column,
+                test_size=args.test_size,
+                random_state=args.seed,
+            )
+            print(report, file=sys.stderr)
+        elif method == "lexicon":
+            emo = EmotionAnalyzer.pretrained() if args.extend else EmotionAnalyzer()
+            used = emo.fit_csv(
+                args.data,
+                text_column=args.text_column or "text",
+                emotion_column=args.label_column,
+                show_progress=not args.quiet,
+            )
+            print(f"Learned from {used} rows", file=sys.stderr)
+        else:
+            raise SystemExit("error: --method for emotion must be lexicon or classifier")
         path = emo.save(args.output)
-        print(f"Learned from {used} rows", file=sys.stderr)
     print(f"Model saved to {path}", file=sys.stderr)
     return 0
 
 
 def cmd_evaluate(args: argparse.Namespace) -> int:
-    report = _polarity_model(args.model).evaluate_csv(
-        args.data, text_column=args.text_column, label_column=args.label_column
-    )
+    if args.task == "emotion":
+        report = _emotion_model(args.model).evaluate_csv(
+            args.data, text_column=args.text_column or "text", emotion_column=args.label_column
+        )
+    else:
+        report = _polarity_model(args.model).evaluate_csv(
+            args.data,
+            text_column=args.text_column or "body",
+            label_column=args.label_column or "recommendation_status",
+        )
     if args.json:
         print(_dump(report.to_dict()))
         return 0
@@ -161,7 +197,7 @@ def build_parser() -> argparse.ArgumentParser:
     def text_inputs(p: argparse.ArgumentParser) -> None:
         p.add_argument("text", nargs="*", help="text(s) to analyze; omit to read lines from --file or stdin")
         p.add_argument("-f", "--file", help="UTF-8 text file with one text per line")
-        p.add_argument("-m", "--model", help="model directory or file (default: bundled model)")
+        p.add_argument("-m", "--model", help=MODEL_HELP)
         p.add_argument("--json", action="store_true", help="one JSON object per line")
 
     p = sub.add_parser("polarity", help="recommended / not_recommended / no_idea")
@@ -179,7 +215,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-o", "--output", required=True)
     p.add_argument("-t", "--task", choices=("polarity", "emotion"), default="polarity")
     p.add_argument("-c", "--column", default="0", help="column name or 0-based index (default: 0)")
-    p.add_argument("-m", "--model", help="model directory or file (default: bundled model)")
+    p.add_argument("-m", "--model", help=MODEL_HELP)
     p.add_argument("--scores", action="store_true", help="polarity: add one probability column per label")
     p.add_argument("--summary", help="polarity: also write a label summary CSV")
     p.add_argument("--lang", choices=("fa", "en"), default="fa", help="emotion: column names")
@@ -190,22 +226,27 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("task", choices=("polarity", "emotion"))
     p.add_argument("data", help="training CSV")
     p.add_argument("-o", "--output", required=True, help="directory or file to save the model to")
+    p.add_argument(
+        "--method",
+        help="polarity: tfidf (default) or word2vec; emotion: lexicon (default) or classifier",
+    )
     p.add_argument("--text-column", help="default: body (polarity) / text (emotion)")
     p.add_argument("--label-column", help="default: recommendation_status (polarity) / sentiment (emotion)")
-    p.add_argument("--vector-size", type=int, default=100)
-    p.add_argument("--window", type=int, default=5)
-    p.add_argument("--epochs", type=int, default=5)
+    p.add_argument("--vector-size", type=int, default=100, help="word2vec only")
+    p.add_argument("--window", type=int, default=5, help="word2vec only")
+    p.add_argument("--epochs", type=int, default=5, help="word2vec only")
     p.add_argument("--test-size", type=float, default=0.2)
     p.add_argument("--seed", type=int)
     p.add_argument("--extend", action="store_true", help="emotion: start from the bundled lexicon")
     p.add_argument("-q", "--quiet", action="store_true")
     p.set_defaults(func=cmd_train)
 
-    p = sub.add_parser("evaluate", help="accuracy / F1 of a polarity model on a labelled CSV")
+    p = sub.add_parser("evaluate", help="accuracy / F1 of a model on a labelled CSV")
     p.add_argument("data")
-    p.add_argument("-m", "--model", help="model directory or file (default: bundled model)")
-    p.add_argument("--text-column", default="body")
-    p.add_argument("--label-column", default="recommendation_status")
+    p.add_argument("-t", "--task", choices=("polarity", "emotion"), default="polarity")
+    p.add_argument("-m", "--model", help=MODEL_HELP)
+    p.add_argument("--text-column", help="default: body (polarity) / text (emotion)")
+    p.add_argument("--label-column", help="default: recommendation_status (polarity) / sentiment (emotion)")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_evaluate)
     return parser

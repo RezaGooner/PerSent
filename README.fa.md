@@ -11,9 +11,9 @@
 
 پرسنت (Persian Sentiment Analyzer) یک کتابخانهٔ سبک پایتون و ابزار خط فرمان برای **تحلیل احساسات و هیجان‌های متن فارسی** است.
 
-- **`PolarityClassifier`**: نظر کاربران دربارهٔ کالا یا خدمات را همراه با احتمال هر دسته در یکی از سه دستهٔ `recommended` (پیشنهاد می‌کنم)، `not_recommended` (پیشنهاد نمی‌کنم) و `no_idea` (نظری ندارم) قرار می‌دهد.
-- **`EmotionAnalyzer`**: درصد هفت حس شادی، غم، ترس، عصبانیت، تنفر، شگفتی و آرامش را با یک واژه‌نامهٔ وزن‌دار محاسبه می‌کند.
-- مدل‌های آماده داخل خود بسته هستند و هنگام اجرا چیزی دانلود نمی‌شود. ورودی و خروجی CSV، و آموزش و ارزیابی مدل با داده‌های خودتان هم پشتیبانی می‌شود.
+- **`PolarityClassifier`**: نظر کاربران دربارهٔ کالا یا خدمات را همراه با احتمال هر دسته در یکی از سه دستهٔ `recommended` (پیشنهاد می‌کنم)، `not_recommended` (پیشنهاد نمی‌کنم) و `no_idea` (نظری ندارم) قرار می‌دهد. دقت مدل آمادهٔ آن روی محصولاتی از دیجی‌کالا که در آموزش دیده نشده‌اند **۷۵.۵٪** است.
+- **`EmotionAnalyzer`**: درصد هفت حس شادی، غم، ترس، عصبانیت، تنفر، شگفتی و آرامش را محاسبه می‌کند. این کار یا با یک واژه‌نامهٔ وزن‌دار انجام می‌شود که منفی‌سازی را می‌فهمد، یا با دسته‌بندی که خودتان روی داده‌هایتان آموزش می‌دهید.
+- مدل‌های آماده داخل خود بسته هستند، بدون pickle ذخیره شده‌اند و هنگام اجرا چیزی دانلود نمی‌شود. ورودی و خروجی CSV، آموزش و ارزیابی مدل با داده‌های خودتان و ابزار خط فرمان هم پشتیبانی می‌شود.
 
 ## نصب
 
@@ -36,16 +36,19 @@ pip install PerSent
 ```python
 from PerSent import PolarityClassifier
 
-clf = PolarityClassifier.pretrained()
+clf = PolarityClassifier.pretrained()           # مدل "tfidf-v2"، جزئیات در docs/MODEL_CARD.md
 
 clf.predict("کیفیت عالی داشت")                 # 'recommended'
-clf.predict_proba("کیفیت عالی داشت")           # {'not_recommended': 0.13, 'recommended': 0.74, 'no_idea': 0.13}
+clf.predict_proba("کیفیت عالی داشت")           # {'not_recommended': 0.0, 'recommended': 0.99, 'no_idea': 0.01}
 
 result = clf.analyze("افتضاح بود")
-result.label, result.confidence                # ('not_recommended', 0.9998)
+result.label, result.confidence                # ('not_recommended', 1.0)
 result.label_fa                                # 'پیشنهاد نمی‌کنم'
 
-clf.predict_many(["خوب بود", "پولم هدر رفت"])    # چند متن با هم
+clf.predict_many(["خوب بود", "بد بود"])          # ['recommended', 'not_recommended']
+clf.explain("کیفیت عالی داشت")                 # کلمه‌هایی که در پیش‌بینی بیشترین اثر را داشتند
+
+PolarityClassifier.pretrained("word2vec-v1")   # مدل نسخه‌های 1.5 و قبل‌تر
 ```
 
 <div dir="rtl">
@@ -64,6 +67,8 @@ result.scores          # {'شادی': 0.0, 'غم': 36.0, 'ترس': 28.0, 'عصب
 result.dominant        # 'غم'
 result.matched_words   # کلمه‌هایی از واژه‌نامه که در متن پیدا شدند
 result.scores_en()     # همان امتیازها با نام انگلیسی احساس‌ها
+
+emo.analyze("اصلا خوشحال نیستم").dominant     # None، چون کلمه‌های منفی‌شده حساب نمی‌شوند
 ```
 
 <div dir="rtl">
@@ -93,8 +98,10 @@ echo "خیلی خوشحالم" | persent emotion
 persent emotion --file texts.txt --json
 persent csv comments.csv -o results.csv -c نظرات --scores --summary summary.csv
 persent csv texts.csv -o emotions.csv --task emotion -c text
-persent train polarity train.csv -o my_model/ --seed 42
+persent train polarity train.csv -o my_model/ --seed 42   # --method tfidf (پیش‌فرض) یا word2vec
+persent train emotion emotions.csv -o emo.npz --method classifier
 persent evaluate test.csv -m my_model/
+persent polarity "خوب بود" -m word2vec-v1                 # نام هر مدل آماده
 ```
 
 <div dir="rtl">
@@ -114,13 +121,19 @@ print(report)                  # دقت و macro-F1 روی دادهٔ آزمون
 clf.save("my_model/")
 clf = PolarityClassifier.load("my_model/")
 print(clf.evaluate_csv("test.csv"))
+# با method="word2vec" معماری نسخه‌های 1.5 و قبل‌تر آموزش داده می‌شود
 
-emo = EmotionAnalyzer.pretrained()          # یا EmotionAnalyzer() برای شروع از صفر
-emo.fit_csv("dataset/emotion_dataset.csv")  # ستون‌ها: text، sentiment و weight
-emo.add_lexicon("my_words.csv")             # کلمه، حس، وزن
-emo.add_word("سرمست", "شادی", weight=1.5)    # فقط تک‌کلمه
-emo.save("my_emotions.json")
-emo = EmotionAnalyzer.load("my_emotions.json")
+# احساس با دسته‌بند: به متن‌های برچسب‌دار نیاز دارد و خیلی دقیق‌تر از واژه‌نامه است
+emo = EmotionAnalyzer()
+print(emo.fit_classifier_csv("emotions.csv"))   # ستون‌ها: text و sentiment (برچسب "other" یعنی بدون احساس)
+emo.save("my_emotions.npz")
+
+# احساس با واژه‌نامه
+lex = EmotionAnalyzer.pretrained()
+lex.fit_csv("dataset/emotion_dataset.csv")   # ستون‌ها: text، sentiment و weight
+lex.add_lexicon("my_words.csv")              # کلمه، حس، وزن
+lex.add_word("وحشت‌زده", "ترس", weight=1.5)    # کلمه یا عبارت کوتاه
+lex.save("my_lexicon.json")
 ```
 
 <div dir="rtl">
@@ -134,15 +147,36 @@ emo = EmotionAnalyzer.load("my_emotions.json")
 
 ## کیفیت مدل و محدودیت‌ها
 
-- دقت مدل آمادهٔ تحلیل نظرات روی نمونه‌ای ۱۰٬۰۰۰تایی از [`dataset/train.csv`](dataset/train.csv) حدود **۶۵٪** است (macro-F1 ≈ ۰.۶۴). سه دسته متوازن‌اند و دقت تصادفی ۳۳٪ است. بهبود مدل در برنامهٔ نسخه‌های بعدی است.
-- تحلیلگر احساس بر پایهٔ واژه‌نامه کار می‌کند و **هنوز منفی‌سازی را تشخیص نمی‌دهد**. مثلاً «خوشحال نیستم» شادی حساب می‌شود.
-- لیست ایست‌واژه‌های hazm کلمه‌هایی مثل «خوب»، «بد» و «عالی» را هم شامل می‌شود و این کلمه‌ها پیش از دسته‌بندی حذف می‌شوند. به همین دلیل نتیجه برای نظرهای خیلی کوتاه قابل اعتماد نیست.
+جزئیات داده‌ها و روش ارزیابی در [docs/MODEL_CARD.md](docs/MODEL_CARD.md) آمده است.
+
+</div>
+
+| مدل | دادهٔ آزمون | Accuracy | Macro-F1 |
+|---|---|---|---|
+| نظرات `tfidf-v2` (پیش‌فرض) | ۳۰٬۰۰۰ نظر دیجی‌کالا دربارهٔ محصولاتی که در آموزش نبودند | **۰.۷۵۵** | **۰.۷۵۵** |
+| نظرات `word2vec-v1` (نسخهٔ 1.5 و قبل‌تر) | همان | ۰.۶۵۳ | ۰.۶۴۹ |
+| احساس، واژه‌نامهٔ `lexicon-v1` | ArmanEmo + ShortPersianEmo + EmoPars (۱٬۹۰۶ متن) | ۰.۲۶۷ | ۰.۲۷۳ |
+| احساس، دسته‌بند آموزش‌دیده با `fit_classifier` | همان | ۰.۵۲۹ | ۰.۴۷۷ |
+
+<div dir="rtl">
+
+- مدل نظرات روی نظرهای فروشگاه اینترنتی آموزش دیده و روی متن‌های حوزه‌های دیگر و جمله‌های تکی ضعیف‌تر است.
+- واژه‌نامهٔ احساس فقط یک مبنای ساده است. برای کار واقعی، روی دادهٔ برچسب‌دار حوزهٔ خودتان یک دسته‌بند آموزش دهید. دسته‌بند احساس همراه کتابخانه منتشر نشده، چون دیتاست‌های عمومی‌ای که اجازهٔ بازنشر دارند، مدلی بهتر از واژه‌نامه روی دادهٔ مستقل نساختند (جزئیات در model card).
 
 مجموعه‌دادهٔ بزرگ‌تر برای آموزش: [اینجا](https://github.com/RezaGooner/Sentiment-Survey-Analyzer/tree/main/Dataset/big_train)
 
 ## ارتقا از نسخهٔ 1.x
 
-`CommentAnalyzer` و `SentimentAnalyzer` دقیقاً مثل قبل کار می‌کنند، ولی یک `DeprecationWarning` نشان می‌دهند و در نسخهٔ 2.0 حذف خواهند شد.
+`CommentAnalyzer` و `SentimentAnalyzer` دقیقاً مثل قبل کار می‌کنند، با همان مدل‌ها و همان نتیجه‌ها. فقط یک `DeprecationWarning` نشان می‌دهند و در نسخهٔ 2.0 حذف خواهند شد.
+
+**در نسخهٔ 1.6 پیش‌فرض کلاس‌های جدید عوض شده است:**
+- `PolarityClassifier.pretrained()` حالا مدل دقیق‌تر `tfidf-v2` را برمی‌گرداند و `fit()` به‌طور پیش‌فرض مدل TF-IDF آموزش می‌دهد.
+- `EmotionAnalyzer` کلمه‌های منفی‌شده را حساب نمی‌کند.
+
+برای گرفتن همان نتیجه‌های نسخهٔ 1.5:
+- `PolarityClassifier.pretrained("word2vec-v1")`
+- `fit(..., method="word2vec")`
+- `EmotionAnalyzer.pretrained(handle_negation=False, match_phrases=False, stopwords="legacy")`
 
 </div>
 

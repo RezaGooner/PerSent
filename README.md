@@ -10,10 +10,13 @@
 
 PerSent is a lightweight Python library and command-line tool for **sentiment and emotion analysis of Persian (Farsi) text**.
 
-- **`PolarityClassifier`** labels product/service reviews as `recommended`, `not_recommended` or `no_idea`, with probabilities.
-- **`EmotionAnalyzer`** scores seven emotions with a weighted lexicon:
-  شادی (happiness), غم (sadness), ترس (fear), عصبانیت (anger), تنفر (disgust), شگفتی (surprise), آرامش (calmness).
-- Pre-trained models included (no download at runtime), CSV in/out, train and evaluate your own models.
+- **`PolarityClassifier`** labels product/service reviews as `recommended`, `not_recommended` or `no_idea`, with
+  probabilities — **75.5 % accuracy** on unseen Digikala products with the bundled model.
+- **`EmotionAnalyzer`** scores seven emotions:
+  شادی (happiness), غم (sadness), ترس (fear), عصبانیت (anger), تنفر (disgust), شگفتی (surprise), آرامش (calmness) —
+  with a weighted lexicon that understands negation, or with a classifier you train on your own data.
+- Pre-trained models included (no download at runtime, pickle-free files), CSV in/out, train and evaluate your own models,
+  command-line tool.
 
 ## Installation
 
@@ -30,15 +33,19 @@ Requires Python 3.10–3.13.
 ```python
 from PerSent import PolarityClassifier
 
-clf = PolarityClassifier.pretrained()
+clf = PolarityClassifier.pretrained()           # "tfidf-v2", see docs/MODEL_CARD.md
 
 clf.predict("کیفیت عالی داشت")                 # 'recommended'
-clf.predict_proba("کیفیت عالی داشت")           # {'not_recommended': 0.13, 'recommended': 0.74, 'no_idea': 0.13}
+clf.predict_proba("کیفیت عالی داشت")           # {'not_recommended': 0.0, 'recommended': 0.99, 'no_idea': 0.01}
 
 result = clf.analyze("افتضاح بود")
-result.label, result.confidence                # ('not_recommended', 0.9998)
+result.label, result.confidence                # ('not_recommended', 1.0)
 
-clf.predict_many(["خوب بود", "پولم هدر رفت"])    # batch
+clf.predict_many(["خوب بود", "بد بود"])          # ['recommended', 'not_recommended']
+clf.explain("کیفیت عالی داشت")                 # words that drove the prediction
+
+PolarityClassifier.available_models()          # ('tfidf-v2', 'word2vec-v1')
+PolarityClassifier.pretrained("word2vec-v1")   # the model of PerSent <= 1.5
 ```
 
 ### Emotions
@@ -54,6 +61,8 @@ result.dominant        # 'غم'
 result.matched_words   # lexicon words that produced the scores
 result.scores_en()     # {'happiness': 0.0, 'sadness': 36.0, 'fear': 28.0, 'anger': 36.0, ...}
 result.to_dict(lang="en")
+
+emo.analyze("اصلا خوشحال نیستم").dominant     # None — negated words are ignored
 ```
 
 ### CSV files
@@ -76,8 +85,11 @@ echo "خیلی خوشحالم" | persent emotion --lang en
 persent emotion --file texts.txt --json                    # one JSON object per line
 persent csv comments.csv -o results.csv -c نظرات --scores --summary summary.csv
 persent csv texts.csv -o emotions.csv --task emotion -c text
-persent train polarity train.csv -o my_model/ --seed 42
+persent train polarity train.csv -o my_model/ --seed 42   # --method tfidf (default) | word2vec
+persent train emotion emotions.csv -o emo.npz --method classifier
 persent evaluate test.csv -m my_model/
+persent evaluate emotions_test.csv --task emotion -m emo.npz
+persent polarity "خوب بود" -m word2vec-v1                 # any bundled model name
 ```
 
 `python -m PerSent ...` works as well. Run `persent <command> --help` for all options.
@@ -90,19 +102,29 @@ from PerSent import PolarityClassifier, EmotionAnalyzer
 clf = PolarityClassifier()
 report = clf.fit_csv("dataset/train.csv", random_state=42)   # columns: body, recommendation_status
 print(report)                  # Trained on ... texts, tested on ...: accuracy=..., macro-F1=...
-clf.save("my_model/")          # -> my_model/comment_model.npz
+clf.save("my_model/")          # -> my_model/polarity_model.npz
 clf = PolarityClassifier.load("my_model/")
 print(clf.evaluate_csv("test.csv"))
+# method="word2vec" trains the PerSent <= 1.5 architecture instead
 
-emo = EmotionAnalyzer.pretrained()          # or EmotionAnalyzer() to start empty
-emo.fit_csv("dataset/emotion_dataset.csv")  # columns: text, sentiment, weight
-emo.add_lexicon("my_words.csv")             # word, emotion, weight
-emo.add_word("سرمست", "happiness", weight=1.5)   # single words only
-emo.save("my_emotions.json")
-emo = EmotionAnalyzer.load("my_emotions.json")
+# emotions — classifier: needs labelled texts, much more accurate than a lexicon
+emo = EmotionAnalyzer()
+print(emo.fit_classifier_csv("emotions.csv"))   # columns: text, sentiment ("other" = no emotion)
+emo.save("my_emotions.npz")
+
+# emotions — lexicon
+lex = EmotionAnalyzer.pretrained()
+lex.fit_csv("dataset/emotion_dataset.csv")   # columns: text, sentiment, weight
+lex.add_lexicon("my_words.csv")              # word, emotion, weight
+lex.add_word("وحشت‌زده", "fear", weight=1.5)   # words or short phrases
+lex.save("my_lexicon.json")
+EmotionAnalyzer.load("my_lexicon.json")
 ```
 
 Models are stored as plain `.npz` / `.json` files — loading them never executes code.
+
+`scripts/` contains the code that builds the training sets and the bundled model
+(`build_polarity_dataset.py`, `train_polarity_model.py`, `build_emotion_dataset.py`).
 
 ## API reference
 
@@ -110,12 +132,13 @@ Models are stored as plain `.npz` / `.json` files — loading them never execute
 
 | Member | Description |
 |---|---|
-| `PolarityClassifier.pretrained()` | Bundled model. |
-| `PolarityClassifier.load(path)` / `save(path)` | Directory (`comment_model.npz`) or `.npz` file. 1.x pickle folders load with a warning. |
+| `PolarityClassifier.pretrained(name=None)` / `available_models()` | Bundled models: `"tfidf-v2"` (default), `"word2vec-v1"`. |
+| `PolarityClassifier.load(path)` / `save(path)` | Directory or `.npz` file. 1.x pickle folders load with a warning. |
+| `method` / `explain(text, k=5)` | `"tfidf"` or `"word2vec"` / words that drove a TF-IDF prediction. |
 | `predict(text)` / `predict_many(texts)` | Label(s). Texts without letters return `no_idea`. |
 | `predict_proba(text)` | `{label: probability}`. |
 | `analyze(text)` / `analyze_many(texts)` | `PolarityResult(text, label, scores)` with `.confidence`, `.label_fa`, `.to_dict()`. |
-| `fit(texts, labels, *, vector_size=100, window=5, min_count=1, epochs=5, test_size=0.2, random_state=None, C=1.0, ...)` | Train Word2Vec + logistic regression. Returns a `TrainingReport` (accuracy, macro-F1, per-label metrics on a stratified hold-out split). |
+| `fit(texts, labels, *, method="tfidf", test_size=0.2, random_state=None, C=None, **options)` | Train TF-IDF (default) or Word2Vec + logistic regression. Returns a `TrainingReport` (accuracy, macro-F1, per-label metrics on a stratified hold-out split). |
 | `fit_csv(data, text_column="body", label_column="recommendation_status", **fit_kwargs)` | `fit` on a CSV path or DataFrame. |
 | `evaluate(texts, labels)` / `evaluate_csv(data, ...)` | `EvaluationReport` with accuracy, macro-F1, per-label metrics and confusion matrix. |
 | `analyze_csv(input, output=None, *, text_column=0, output_column="sentiment", include_scores=False, summary_csv=None)` | Analyze a column; returns a DataFrame. |
@@ -124,13 +147,16 @@ Models are stored as plain `.npz` / `.json` files — loading them never execute
 
 | Member | Description |
 |---|---|
-| `EmotionAnalyzer.pretrained()` | Bundled lexicon. |
-| `EmotionAnalyzer.load(path)` / `save(path)` | `.json` file or directory. |
-| `analyze(text)` / `analyze_many(texts)` | `EmotionResult(text, scores, matched_words)` with `.dominant`, `.dominant_en`, `.scores_en()`, `.to_dict(lang)`. |
+| `EmotionAnalyzer(lexicon=None, *, classifier=None, handle_negation=True, match_phrases=True, stopwords="opinion")` | Lexicon or classifier backend (`backend`). |
+| `EmotionAnalyzer.pretrained(name=None)` / `available_models()` | Bundled lexicon `"lexicon-v1"`. |
+| `EmotionAnalyzer.load(path)` / `save(path)` | Lexicon `.json`, classifier `.npz`, or a directory. |
+| `analyze(text)` / `analyze_many(texts)` | `EmotionResult(text, scores, matched_words, neutral)` with `.dominant`, `.dominant_en`, `.scores_en()`, `.to_dict(lang)`. |
+| `fit_classifier(texts, emotions, *, test_size=0.2, class_weight="balanced", C=4.0, ...)` / `fit_classifier_csv(data, ...)` | Train a TF-IDF classifier; `"other"` marks texts without an emotion. Returns a `TrainingReport`. |
+| `evaluate(texts, emotions)` / `evaluate_csv(data, ...)` | Accuracy / macro-F1 of the dominant emotion. |
 | `scores(text)` / `dominant(text)` | Shortcuts. |
 | `fit_csv(data, text_column="text", emotion_column=None, weight_column="weight", *, reset=False)` | Learn emotion words from labelled texts (merged into the current lexicon unless `reset=True`). |
 | `add_lexicon(data, word_column=0, emotion_column=1, weight_column=2)` | Add a word/emotion/weight table. Emotions may be Persian or English names. |
-| `add_word(word, emotion, weight=1.0)` | Add a single word. |
+| `add_word(word, emotion, weight=1.0)` | Add a word or a short phrase. |
 | `analyze_csv(input, output=None, *, text_column="text", expand=True, lang="fa")` | One column per emotion plus `dominant_emotion`. |
 
 Errors derive from `PerSent.PerSentError`: `ModelNotLoadedError`, `ModelFileError`, `DataValidationError`
@@ -138,18 +164,31 @@ Errors derive from `PerSent.PerSentError`: `ModelNotLoadedError`, `ModelFileErro
 
 ## Model quality and limitations
 
-- The bundled polarity model reaches about **65 % accuracy** (macro-F1 ≈ 0.64) on a 10 000-review sample of
-  [`dataset/train.csv`](dataset/train.csv) — three balanced classes, so chance level is 33 %. Better models are planned.
-- The emotion analyzer is lexicon-based and does **not handle negation** yet ("خوشحال نیستم" is scored as happiness).
-- hazm's stop-word list contains opinion words such as "خوب", "بد" and "عالی", which are removed before
-  classification; short reviews made only of such words are therefore unreliable.
+Details, data and evaluation protocol: [docs/MODEL_CARD.md](docs/MODEL_CARD.md).
+
+| Model | Test data | Accuracy | Macro-F1 |
+|---|---|---|---|
+| polarity `tfidf-v2` (default) | 30 000 Digikala reviews of unseen products | **0.755** | **0.755** |
+| polarity `word2vec-v1` (≤ 1.5) | same | 0.653 | 0.649 |
+| emotion lexicon `lexicon-v1` | ArmanEmo + ShortPersianEmo + EmoPars (1 906 texts) | 0.267 | 0.273 |
+| emotion classifier trained with `fit_classifier` | same | 0.529 | 0.477 |
+
+- The polarity model is trained on e-commerce reviews; it is weaker on other domains and on single sentences.
+- The bundled emotion lexicon is a simple baseline. Train a classifier on labelled data from your own domain for
+  real use. No emotion classifier is bundled: the public datasets that may be redistributed did not produce a model
+  that beats the lexicon on independent data (see the model card).
 
 A larger training set is available [here](https://github.com/RezaGooner/Sentiment-Survey-Analyzer/tree/main/Dataset/big_train).
 
 ## Upgrading from 1.x
 
-`CommentAnalyzer` and `SentimentAnalyzer` still work exactly as before but emit a `DeprecationWarning`; they will be
-removed in PerSent 2.0.
+`CommentAnalyzer` and `SentimentAnalyzer` still work exactly as before — same models, same results — but emit a
+`DeprecationWarning`; they will be removed in PerSent 2.0.
+
+**1.6 changes the defaults of the new classes:** `PolarityClassifier.pretrained()` now returns the more accurate
+`tfidf-v2` model and `fit()` trains TF-IDF; `EmotionAnalyzer` ignores negated words. To get 1.5 results:
+`PolarityClassifier.pretrained("word2vec-v1")`, `fit(..., method="word2vec")`,
+`EmotionAnalyzer.pretrained(handle_negation=False, match_phrases=False, stopwords="legacy")`.
 
 | 1.x | 1.5+ |
 |---|---|

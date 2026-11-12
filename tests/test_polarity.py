@@ -51,7 +51,8 @@ def test_batch_matches_single(polarity):
     assert polarity.predict_many([]) == []
 
 
-def test_batch_matches_legacy_class(polarity, comment_analyzer):
+def test_batch_matches_legacy_class(comment_analyzer):
+    polarity = PolarityClassifier.pretrained("word2vec-v1")
     texts = ["کیفیت عالی داشت", "افتضاح بود", "", "iPhone 13 Pro عالی", "خوب بود", "نمیدونم هنوز"]
     if os.path.exists(TRAIN_CSV):
         texts += pd.read_csv(TRAIN_CSV, nrows=300)["body"].tolist()
@@ -69,7 +70,7 @@ def test_unfitted_raises():
 
 def test_fit_save_load(comments_csv, tmp_path):
     clf = PolarityClassifier()
-    report = clf.fit_csv(comments_csv, vector_size=16, random_state=0, workers=1)
+    report = clf.fit_csv(comments_csv, method="word2vec", vector_size=16, random_state=0, workers=1)
     assert report.n_train + report.n_test == 30 and report.n_test == 6
     assert 0 <= report.accuracy <= 1 and 0 <= report.macro_f1 <= 1
     assert set(report.per_label) == set(LABELS)
@@ -85,7 +86,7 @@ def test_fit_save_load(comments_csv, tmp_path):
 
 def test_fit_with_dataframe_and_no_test_split(comments_csv):
     df = pd.read_csv(comments_csv)
-    report = PolarityClassifier().fit(df.body, df.recommendation_status, test_size=0, workers=1, random_state=0)
+    report = PolarityClassifier().fit(df.body, df.recommendation_status, test_size=0, random_state=0)
     assert report.accuracy is None and report.n_test == 0 and "no test split" in str(report)
 
 
