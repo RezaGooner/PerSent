@@ -15,7 +15,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   (the PerSent ≤ 1.5 model); `PolarityClassifier.fit(method="tfidf" | "word2vec")`; `method` property;
   `explain(text)` lists the words behind a TF-IDF prediction.
 - Emotion **classifier backend**: `EmotionAnalyzer.fit_classifier()` / `fit_classifier_csv()` train a TF-IDF
-  classifier (≈ 2× the lexicon's accuracy on public emotion data); an `"other"` label models "no emotion"
+  classifier (≈ 2× the lexicon's accuracy on public emotion data); an `"other"` label (also `"بدون_احساس"`, the column name `analyze_csv` writes) models "no emotion"
   (reported as `EmotionResult.neutral` and `dominant=None`). Saved as `.npz`; `EmotionAnalyzer.load()` detects
   the type. `EmotionAnalyzer.evaluate()` / `evaluate_csv()`. No emotion classifier is bundled: classifiers trained
   on the redistributable public datasets did not beat the lexicon on independent data (see `docs/MODEL_CARD.md`).

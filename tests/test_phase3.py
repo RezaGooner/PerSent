@@ -239,3 +239,10 @@ def test_legacy_wrapper_unchanged_on_old_files(tmp_path):
         legacy = SentimentAnalyzer(model_dir=tmp_path)
     legacy.loadModel()
     assert legacy.model.handle_negation is False and legacy.model.stopwords == "legacy"
+
+
+def test_emotion_none_aliases_include_analyze_csv_column_name():
+    from PerSent.emotion import NONE_LABEL, emotion_name
+
+    for alias in ("بدون_احساس", "بدون احساس", "other", "None", "خنثی"):
+        assert emotion_name(alias) == NONE_LABEL

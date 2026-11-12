@@ -52,7 +52,9 @@ EMOTION_MAP: dict[str, int] = {
 EMOTIONS: tuple[str, ...] = tuple(EMOTION_MAP)
 NONE_LABEL = "_none"
 #: Labels accepted for "no emotion / other" when training a classifier.
-NONE_ALIASES = frozenset({"other", "none", "neutral", "no_emotion", "سایر", "هیچ", "خنثی", NONE_LABEL})
+NONE_ALIASES = frozenset(
+    {"other", "none", "neutral", "no_emotion", "سایر", "هیچ", "خنثی", "بدون_احساس", "بدون احساس", NONE_LABEL}
+)
 
 PRETRAINED: dict[str, str] = {"lexicon-v1": "emotion_lexicon.json"}
 DEFAULT_PRETRAINED = "lexicon-v1"
