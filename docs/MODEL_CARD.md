@@ -79,6 +79,17 @@ stems/lemmas), built from `dataset/emotion_dataset.csv`. Since 1.6 negated words
 removed as stop-words. On a merged ArmanEmo + ShortPersianEmo + EmoPars test set
 (1 906 texts, 6 emotions) it reaches accuracy 0.267 / macro-F1 0.273 (majority class: 0.262);
 a TF-IDF classifier trained on the same sources with `EmotionAnalyzer.fit_classifier()` reaches
-0.529 / 0.477. No emotion classifier is bundled yet because those datasets' licences
-(CC BY-NC-SA 4.0, GPL-3.0, unspecified) do not allow redistributing a model under MIT
-without the authors' permission. `scripts/build_emotion_dataset.py` builds the merged set.
+0.529 / 0.477.
+
+No emotion classifier is bundled:
+
+* ArmanEmo (CC BY-NC-SA 4.0) — the authors allow non-commercial use only, which is
+  incompatible with shipping it in an MIT package.
+* EmoPars — the authors kindly allowed publishing a model trained on it (2026-11-12). However, a
+  classifier trained on EmoPars alone does not beat the lexicon on independent data
+  (ArmanEmo test macro-F1 0.278 vs 0.306; 0.18 on EmoPars's own test, near chance), so it is not
+  shipped.
+* ShortPersianEmo (GPL-3.0) — permission requested. Trained alone it scores macro-F1 0.666 on its
+  own test set but 0.279 on ArmanEmo, so single-dataset TF-IDF classifiers do not generalize.
+
+`scripts/build_emotion_dataset.py` builds the merged evaluation set.

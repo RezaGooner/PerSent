@@ -17,7 +17,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Emotion **classifier backend**: `EmotionAnalyzer.fit_classifier()` / `fit_classifier_csv()` train a TF-IDF
   classifier (≈ 2× the lexicon's accuracy on public emotion data); an `"other"` label models "no emotion"
   (reported as `EmotionResult.neutral` and `dominant=None`). Saved as `.npz`; `EmotionAnalyzer.load()` detects
-  the type. `EmotionAnalyzer.evaluate()` / `evaluate_csv()`.
+  the type. `EmotionAnalyzer.evaluate()` / `evaluate_csv()`. No emotion classifier is bundled: classifiers trained
+  on the redistributable public datasets did not beat the lexicon on independent data (see `docs/MODEL_CARD.md`).
 - Emotion lexicon: **negation handling** ("خوشحال نیستم", "اصلا نمی‌ترسم", "نه … نه …") and **multi-word
   entries** (e.g. "وحشت‌زده", which normalization splits into two words) — `add_word()` accepts phrases.
 - Opinion-aware stop-word list: words such as "خوب", "عالی", "بهتر", "نه", "نیست" are no longer discarded by the

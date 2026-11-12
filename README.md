@@ -174,8 +174,9 @@ Details, data and evaluation protocol: [docs/MODEL_CARD.md](docs/MODEL_CARD.md).
 | emotion classifier trained with `fit_classifier` | same | 0.529 | 0.477 |
 
 - The polarity model is trained on e-commerce reviews; it is weaker on other domains and on single sentences.
-- The bundled emotion lexicon is a simple baseline. Train a classifier on labelled data for real use; no emotion
-  classifier is bundled yet because the public Persian emotion datasets do not allow redistribution under MIT.
+- The bundled emotion lexicon is a simple baseline. Train a classifier on labelled data from your own domain for
+  real use. No emotion classifier is bundled: the public datasets that may be redistributed did not produce a model
+  that beats the lexicon on independent data (see the model card).
 
 A larger training set is available [here](https://github.com/RezaGooner/Sentiment-Survey-Analyzer/tree/main/Dataset/big_train).
 
